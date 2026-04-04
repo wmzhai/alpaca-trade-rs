@@ -1,4 +1,4 @@
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use reqwest::header::{HeaderName, HeaderValue};
 
 use crate::error::Error;
 
@@ -6,16 +6,13 @@ const APCA_API_KEY_ID: HeaderName = HeaderName::from_static("apca-api-key-id");
 const APCA_API_SECRET_KEY: HeaderName = HeaderName::from_static("apca-api-secret-key");
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Credentials {
+pub(crate) struct Auth {
     api_key: String,
     secret_key: String,
 }
 
-impl Credentials {
-    pub(crate) fn validate(
-        api_key: Option<String>,
-        secret_key: Option<String>,
-    ) -> Result<Self, Error> {
+impl Auth {
+    pub(crate) fn new(api_key: Option<String>, secret_key: Option<String>) -> Result<Self, Error> {
         match (api_key, secret_key) {
             (Some(api_key), Some(secret_key)) => {
                 if api_key.trim().is_empty() {
@@ -42,7 +39,10 @@ impl Credentials {
         }
     }
 
-    pub(crate) fn apply_headers(&self, headers: &mut HeaderMap) -> Result<(), Error> {
+    pub(crate) fn apply(
+        &self,
+        request: reqwest::RequestBuilder,
+    ) -> Result<reqwest::RequestBuilder, Error> {
         let api_key = HeaderValue::from_str(&self.api_key).map_err(|error| {
             Error::InvalidConfiguration(format!("invalid api_key header value: {error}"))
         })?;
@@ -50,8 +50,8 @@ impl Credentials {
             Error::InvalidConfiguration(format!("invalid secret_key header value: {error}"))
         })?;
 
-        headers.insert(APCA_API_KEY_ID, api_key);
-        headers.insert(APCA_API_SECRET_KEY, secret_key);
-        Ok(())
+        Ok(request
+            .header(APCA_API_KEY_ID.clone(), api_key)
+            .header(APCA_API_SECRET_KEY.clone(), secret_key))
     }
 }

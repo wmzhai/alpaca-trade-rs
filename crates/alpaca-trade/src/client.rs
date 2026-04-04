@@ -1,11 +1,12 @@
 use std::sync::Arc;
-
-use reqwest::header::HeaderMap;
+use std::time::Duration;
 
 use crate::account::AccountClient;
-use crate::auth::Credentials;
+use crate::auth::Auth;
 use crate::error::Error;
+use crate::transport::http::HttpClient;
 
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 const PAPER_BASE_URL: &str = "https://paper-api.alpaca.markets";
 const LIVE_BASE_URL: &str = "https://api.alpaca.markets";
 
@@ -14,18 +15,40 @@ pub struct Client {
     inner: Arc<Inner>,
 }
 
-#[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Inner {
+    pub(crate) auth: Auth,
     pub(crate) base_url: String,
-    pub(crate) http_client: reqwest::Client,
+    #[allow(dead_code)]
+    pub(crate) timeout: Duration,
+    pub(crate) http: HttpClient,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone)]
+enum Environment {
+    Paper,
+    Live,
+}
+
+#[derive(Debug)]
 pub struct ClientBuilder {
     api_key: Option<String>,
     secret_key: Option<String>,
-    live: bool,
+    environment: Environment,
+    base_url: Option<String>,
+    timeout: Duration,
+}
+
+impl Default for ClientBuilder {
+    fn default() -> Self {
+        Self {
+            api_key: None,
+            secret_key: None,
+            environment: Environment::Paper,
+            base_url: None,
+            timeout: DEFAULT_TIMEOUT,
+        }
+    }
 }
 
 impl Client {
@@ -49,39 +72,53 @@ impl ClientBuilder {
         self
     }
 
+    pub fn paper(mut self) -> Self {
+        self.environment = Environment::Paper;
+        self
+    }
+
     pub fn live(mut self) -> Self {
-        self.live = true;
+        self.environment = Environment::Live;
+        self
+    }
+
+    pub fn base_url(mut self, base_url: impl Into<String>) -> Self {
+        self.base_url = Some(base_url.into());
+        self
+    }
+
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
         self
     }
 
     pub fn build(self) -> Result<Client, Error> {
-        let credentials = Credentials::validate(self.api_key, self.secret_key)?;
-        let mut headers = HeaderMap::new();
-        credentials.apply_headers(&mut headers)?;
-
-        let http_client = reqwest::Client::builder()
-            .default_headers(headers)
-            .build()
-            .map_err(Error::from_reqwest)?;
-
-        let inner = Inner {
-            base_url: if self.live {
-                LIVE_BASE_URL.to_owned()
-            } else {
-                PAPER_BASE_URL.to_owned()
-            },
-            http_client,
-        };
+        let auth = Auth::new(self.api_key, self.secret_key)?;
+        let http = HttpClient::new(self.timeout)?;
+        let base_url = self.base_url.unwrap_or_else(|| match self.environment {
+            Environment::Paper => PAPER_BASE_URL.to_owned(),
+            Environment::Live => LIVE_BASE_URL.to_owned(),
+        });
+        reqwest::Url::parse(&base_url).map_err(|error| {
+            Error::InvalidConfiguration(format!("invalid base_url: {error}"))
+        })?;
 
         Ok(Client {
-            inner: Arc::new(inner),
+            inner: Arc::new(Inner {
+                auth,
+                base_url,
+                timeout: self.timeout,
+                http,
+            }),
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Client, LIVE_BASE_URL, PAPER_BASE_URL};
+    use std::time::Duration;
+
+    use super::{Client, DEFAULT_TIMEOUT, LIVE_BASE_URL, PAPER_BASE_URL};
 
     #[test]
     fn builder_uses_paper_base_url_by_default() {
@@ -92,6 +129,7 @@ mod tests {
             .expect("client should build");
 
         assert_eq!(client.inner.base_url, PAPER_BASE_URL);
+        assert_eq!(client.inner.timeout, DEFAULT_TIMEOUT);
     }
 
     #[test]
@@ -104,5 +142,32 @@ mod tests {
             .expect("client should build");
 
         assert_eq!(client.inner.base_url, LIVE_BASE_URL);
+    }
+
+    #[test]
+    fn builder_allows_paper_override() {
+        let client = Client::builder()
+            .api_key("key")
+            .secret_key("secret")
+            .live()
+            .paper()
+            .build()
+            .expect("client should build");
+
+        assert_eq!(client.inner.base_url, PAPER_BASE_URL);
+    }
+
+    #[test]
+    fn builder_allows_base_url_and_timeout_override() {
+        let client = Client::builder()
+            .api_key("key")
+            .secret_key("secret")
+            .base_url("http://localhost:4010")
+            .timeout(Duration::from_secs(5))
+            .build()
+            .expect("client should build");
+
+        assert_eq!(client.inner.base_url, "http://localhost:4010");
+        assert_eq!(client.inner.timeout, Duration::from_secs(5));
     }
 }

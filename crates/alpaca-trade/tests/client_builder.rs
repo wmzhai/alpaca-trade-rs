@@ -50,6 +50,21 @@ fn builder_rejects_whitespace_only_credentials() {
 }
 
 #[test]
+fn builder_rejects_invalid_base_url() {
+    let error = Client::builder()
+        .api_key("key")
+        .secret_key("secret")
+        .base_url("not a url")
+        .build()
+        .expect_err("invalid base_url must fail");
+
+    assert!(matches!(
+        error,
+        Error::InvalidConfiguration(message) if message.contains("base_url")
+    ));
+}
+
+#[test]
 fn client_exposes_account_accessor() {
     let client = Client::builder()
         .api_key("key")
