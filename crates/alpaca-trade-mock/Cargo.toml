@@ -3,12 +3,18 @@ name = "alpaca-trade-mock"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+description = "Minimal in-memory mock server for the non-crypto Alpaca Trading HTTP API"
+readme = "README.md"
+keywords = ["alpaca", "mock", "trading", "testing"]
+categories = ["api-bindings", "development-tools::testing"]
+exclude = ["/.agents/**", "/.github/**", "/AGENTS.md", "/docs/superpowers/**", "/memory/**"]
 
 [lib]
 path = "src/lib.rs"
 
 [dependencies]
-alpaca-trade = { path = "../alpaca-trade" }
+alpaca-trade = { path = "../alpaca-trade", version = "0.0.5" }
 axum.workspace = true
 parking_lot.workspace = true
 serde.workspace = true

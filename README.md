@@ -2,4 +2,33 @@
 
 `alpaca-trade-rs` is a Rust workspace for the non-crypto Alpaca Trading HTTP API.
 
-Current phase: `account` only.
+## Current Status
+
+- Phase 1 scope: `account`
+- Workspace crates:
+  - `alpaca-trade`
+  - `alpaca-trade-mock`
+- Default client environment: Alpaca Paper Trading
+- Primary test backend: local in-memory mock server
+
+## Workspace
+
+- `crates/alpaca-trade`: async Trading API client
+- `crates/alpaca-trade-mock`: minimal contract-oriented mock server
+
+## Phase 1 API
+
+```rust
+use alpaca_trade::Client;
+
+# async fn demo() -> Result<(), alpaca_trade::Error> {
+let client = Client::builder()
+    .api_key(std::env::var("APCA_API_KEY_ID").expect("APCA_API_KEY_ID is required"))
+    .secret_key(std::env::var("APCA_API_SECRET_KEY").expect("APCA_API_SECRET_KEY is required"))
+    .build()?;
+
+let account = client.account().get().await?;
+println!("{}", account.status);
+# Ok(())
+# }
+```

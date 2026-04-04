@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.5 - 2026-04-04
+
+- Add Phase 1 public documentation for the workspace, client crate, and mock crate.
+- Add a public API regression test and a runnable `account_get` example for `alpaca-trade`.
+- Add publish metadata and packaging exclusions for both crates.
+
 ## 0.0.4 - 2026-04-04
 
 - Add mock-backed black-box tests for successful account reads through `alpaca_trade::Client`.
