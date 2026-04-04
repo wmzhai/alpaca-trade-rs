@@ -21,13 +21,17 @@ struct TestServer {
 impl TestServer {
     fn spawn(response: String) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
-        let addr = listener.local_addr().expect("listener should have local addr");
+        let addr = listener
+            .local_addr()
+            .expect("listener should have local addr");
         let (request_tx, request_rx) = mpsc::channel();
 
         let handle = thread::spawn(move || {
             let (mut stream, _) = listener.accept().expect("server should accept connection");
             let mut buffer = [0_u8; 8192];
-            let bytes_read = stream.read(&mut buffer).expect("server should read request");
+            let bytes_read = stream
+                .read(&mut buffer)
+                .expect("server should read request");
             let request = String::from_utf8_lossy(&buffer[..bytes_read]).into_owned();
             let mut lines = request.split("\r\n");
             let request_line = lines
@@ -98,7 +102,10 @@ async fn account_get_hits_official_path_and_sends_auth_headers() {
 
     let request = server.into_request();
     assert_eq!(request.request_line, "GET /v2/account HTTP/1.1");
-    assert_eq!(request.headers.get("apca-api-key-id"), Some(&"key".to_owned()));
+    assert_eq!(
+        request.headers.get("apca-api-key-id"),
+        Some(&"key".to_owned())
+    );
     assert_eq!(
         request.headers.get("apca-api-secret-key"),
         Some(&"secret".to_owned())

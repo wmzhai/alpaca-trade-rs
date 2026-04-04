@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0 - 2026-04-04
+
+- Release the initial `account` phase for `alpaca-trade` with `paper` as the default environment.
+- Release `alpaca-trade-mock` with in-memory `/v2/account`, `/health`, and `/__admin/*` test-control routes.
+- Add mock-backed integration coverage for successful account reads, rate limiting, and malformed JSON failures.
+
 ## 0.0.5 - 2026-04-04
 
 - Add Phase 1 public documentation for the workspace, client crate, and mock crate.

@@ -99,9 +99,8 @@ impl ClientBuilder {
             Environment::Paper => PAPER_BASE_URL.to_owned(),
             Environment::Live => LIVE_BASE_URL.to_owned(),
         });
-        reqwest::Url::parse(&base_url).map_err(|error| {
-            Error::InvalidConfiguration(format!("invalid base_url: {error}"))
-        })?;
+        reqwest::Url::parse(&base_url)
+            .map_err(|error| Error::InvalidConfiguration(format!("invalid base_url: {error}")))?;
 
         Ok(Client {
             inner: Arc::new(Inner {
