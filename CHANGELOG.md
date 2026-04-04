@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.4 - 2026-04-04
+
+- Add mock-backed black-box tests for successful account reads through `alpaca_trade::Client`.
+- Add integration coverage for `429` retry-after propagation and malformed JSON deserialization failures.
+- Wire `alpaca-trade` package tests to the in-repo `alpaca-trade-mock` server crate.
+
 ## 0.0.3 - 2026-04-04
 
 - Add the in-memory `alpaca-trade-mock` account server with seeded `/v2/account` data.
