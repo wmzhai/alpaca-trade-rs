@@ -2,9 +2,9 @@
 
 ## 0.1.6 - 2026-04-05
 
-- Realign public Phase 1 documentation around live-first `account` testing against Alpaca Paper.
+- Realign public Phase 1 documentation around live-first, credential-gated `account` testing against Alpaca Paper.
 - Mark `alpaca-trade-mock` as an internal workspace-only tool and disable future publishing with `publish = false`.
-- Update the coverage manifest, AGENTS rules, and local superseded planning docs to match the new release boundary.
+- Update the public coverage manifest and package docs to match the internal-mock release boundary.
 
 ## 0.1.5 - 2026-04-05
 

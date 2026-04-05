@@ -10,7 +10,7 @@
 - Published crate: `alpaca-trade`
 - Internal workspace tool: `alpaca-trade-mock`
 - Default client environment: Alpaca Paper Trading
-- Phase 1 happy-path testing: live-first against the official paper endpoint
+- Phase 1 happy-path testing: live-first, with credential-gated Alpaca Paper coverage
 
 ## Workspace
 
@@ -43,5 +43,5 @@ Run the full automated test suite with `cargo test --workspace -- --nocapture`.
 
 Notes:
 - `account_model` and `account_transport` stay local/offline.
-- `account_live` talks to the official Alpaca Paper API.
-- If `.env` credentials are missing, the live test prints a skip message and exits successfully.
+- `account_live` is the credential-gated live coverage path against the official Alpaca Paper API.
+- If `.env` credentials are missing, the live test prints a skip message and exits successfully, so a green local run may not include a real paper request.

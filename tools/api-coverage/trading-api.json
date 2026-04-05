@@ -1,6 +1,6 @@
 {
   "manifest_version": 1,
-  "generated_at": "2026-04-04",
+  "generated_at": "2026-04-05",
   "scope": {
     "api": "trading-http-rest",
     "default_environment": "paper",
@@ -56,7 +56,7 @@
           "convenience_status": "implemented",
           "mock_status": "not_planned",
           "live_test_status": "implemented",
-          "notes": "Phase 1 shipped in v0.1.0; normal-path verification was realigned to live-first in v0.1.6."
+          "notes": "Phase 1 shipped in v0.1.0; normal-path verification was realigned to live-first in v0.1.4, with credential-gated Alpaca Paper coverage in automated runs."
         }
       ]
     },
