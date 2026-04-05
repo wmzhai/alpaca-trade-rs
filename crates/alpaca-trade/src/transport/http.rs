@@ -721,9 +721,8 @@ mod tests {
             crate::RetryPolicy::trading_safe(),
             observer.clone(),
         );
-        let auth =
-            crate::auth::Auth::new(Some("key".to_owned()), Some("secret".to_owned()))
-                .expect("auth should build");
+        let auth = crate::auth::Auth::new(Some("key".to_owned()), Some("secret".to_owned()))
+            .expect("auth should build");
 
         let error = client
             .send_json::<serde_json::Value>(

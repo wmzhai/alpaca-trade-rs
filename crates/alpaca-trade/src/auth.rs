@@ -96,8 +96,9 @@ fn validate_header_value(label: &str, value: &str) -> Result<(), Error> {
 }
 
 fn parse_header_value(label: &str, value: &str) -> Result<HeaderValue, Error> {
-    HeaderValue::from_str(value)
-        .map_err(|error| Error::InvalidConfiguration(format!("invalid {label} header value: {error}")))
+    HeaderValue::from_str(value).map_err(|error| {
+        Error::InvalidConfiguration(format!("invalid {label} header value: {error}"))
+    })
 }
 
 impl Debug for Auth {
