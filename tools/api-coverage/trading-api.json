@@ -102,29 +102,29 @@
       "family": "assets",
       "phase": 5,
       "public_entry": "assets()",
-      "status": "planned",
+      "status": "implemented",
       "operations": [
         {
           "operation": "list_assets",
           "method": "GET",
           "path": "/v2/assets",
           "reference": "https://docs.alpaca.markets/reference/get-v2-assets",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Manifest scope excludes crypto usage even though the official endpoint can return crypto assets when filtered that way."
+          "mirror_status": "implemented",
+          "convenience_status": "implemented",
+          "mock_status": "not_planned",
+          "live_test_status": "credential_gated",
+          "notes": "Phase 5 ships `assets` as a live-first read-only resource. Query shaping preserves the official `status`, `asset_class`, `exchange`, and `attributes` words exactly, and `assets` stays out of `alpaca-trade-mock`."
         },
         {
           "operation": "get_asset_by_symbol_or_asset_id",
           "method": "GET",
           "path": "/v2/assets/{symbol_or_asset_id}",
           "reference": "https://docs.alpaca.markets/reference/get-v2-assets-symbol_or_asset_id",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Client scope will document and test non-crypto trading assets only."
+          "mirror_status": "implemented",
+          "convenience_status": "implemented",
+          "mock_status": "not_planned",
+          "live_test_status": "credential_gated",
+          "notes": "Single-asset lookup keeps the official `symbol_or_asset_id` path semantics, remains live-first and read-only, and does not add mock coverage."
         }
       ]
     },

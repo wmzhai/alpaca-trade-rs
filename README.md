@@ -4,9 +4,9 @@
 
 ## Current Status
 
-- Phase 4 milestone: `foundation`
-- Implemented resources: `account`, `clock`, `calendar`
-- Next resource phase: `assets` (Phase 5)
+- Phase 5 milestone: `assets`
+- Implemented resources: `account`, `clock`, `calendar`, `assets`
+- Next resource phase: `options_contracts` (Phase 6)
 - API surface: non-crypto Alpaca Trading HTTP REST only
 - Explicit exclusions: stream / websocket APIs, crypto trading APIs
 - Published crate: `alpaca-trade`
@@ -15,7 +15,7 @@
 - Testing taxonomy: `live_readonly`, `paper_mutating_with_cleanup`, `mock_stateful`, `fault_injection_only`
 - Default retry behavior: automatic retry is limited to `GET`
 - Retry semantics: `max_get_attempts` counts total attempts, so `1` disables retry and `2` means one retry after the first failed `GET`
-- Benchmark note: foundation does not add a dedicated benchmark because it changes shared transport semantics rather than introducing a new high-volume endpoint
+- Benchmark note: no dedicated benchmark because Phase 5 only adds two straightforward read-only GET endpoints without a new local performance-sensitive loop
 
 ## Workspace
 
@@ -26,7 +26,7 @@
 ## Implemented API
 
 ```rust
-use alpaca_trade::{Client, calendar::ListRequest};
+use alpaca_trade::{Client, assets::ListRequest};
 
 # async fn demo() -> Result<(), alpaca_trade::Error> {
 let client = Client::builder()
@@ -34,14 +34,16 @@ let client = Client::builder()
     .secret_key(std::env::var("APCA_API_SECRET_KEY").expect("APCA_API_SECRET_KEY is required"))
     .build()?;
 
-let rows = client
-    .calendar()
+let assets = client
+    .assets()
     .list(ListRequest {
-        start: Some("2026-04-01".into()),
-        end: Some("2026-04-03".into()),
+        status: Some("active".into()),
+        asset_class: Some("us_equity".into()),
+        exchange: Some("NASDAQ".into()),
+        attributes: Some(vec!["has_options".into()]),
     })
     .await?;
-println!("{} {}", rows[0].date, rows[0].open);
+println!("{} {}", assets[0].symbol, assets[0].name);
 # Ok(())
 # }
 ```
@@ -56,8 +58,8 @@ Create a local root `.env` file with either:
 Run the full automated test suite with `cargo test --workspace -- --nocapture`.
 
 Notes:
-- `account_model`, `account_transport`, `clock_model`, `clock_transport`, `calendar_model`, and `calendar_transport` stay local/offline.
-- `account_live`, `clock_live`, and `calendar_live` are the current `live_readonly` credential-gated smoke paths against the official Alpaca Paper API.
+- `account_model`, `account_transport`, `clock_model`, `clock_transport`, `calendar_model`, `calendar_transport`, `assets_model`, and `assets_transport` stay local/offline.
+- `account_live`, `clock_live`, `calendar_live`, and `assets_live` are the current `live_readonly` credential-gated smoke paths against the official Alpaca Paper API.
 - Future mutating families will follow the `paper_mutating_with_cleanup` or `mock_stateful` taxonomy instead of reusing the read-only smoke path.
 - The live test helper accepts both the standard `APCA_*` names and the repo-local `ALPACA_TRADE_*` aliases.
 - If `.env` credentials are missing, the live tests print skip messages and exit successfully, so a green local run may not include a real paper request.

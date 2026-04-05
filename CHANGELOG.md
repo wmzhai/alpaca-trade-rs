@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.5 - 2026-04-05
+
+- Add the credential-gated `assets_live` Alpaca Paper smoke test for both `list` and `get`.
+- Update the workspace and crate READMEs to list `assets` as implemented and move `options_contracts` to the next resource phase.
+- Mark both `assets` operations as implemented, live-first, and mock-free in the Trading API coverage manifest.
+
 ## 0.4.4 - 2026-04-05
 
 - Add `AssetsClient::get()` for the official `GET /v2/assets/{symbol_or_asset_id}` path without local symbol, UUID, or CUSIP guessing.
