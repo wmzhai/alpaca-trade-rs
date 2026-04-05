@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6 - 2026-04-05
+
+- Realign public Phase 1 documentation around live-first `account` testing against Alpaca Paper.
+- Mark `alpaca-trade-mock` as an internal workspace-only tool and disable future publishing with `publish = false`.
+- Update the coverage manifest, AGENTS rules, and local superseded planning docs to match the new release boundary.
+
 ## 0.1.5 - 2026-04-05
 
 - Remove `/v2/account` and all Phase 1 business state from `alpaca-trade-mock`.
@@ -8,9 +14,9 @@
 
 ## 0.1.4 - 2026-04-05
 
-- Switch Phase 1 `account` happy-path verification from mock-backed tests to live-first Alpaca Paper coverage.
+- Switch Phase 1 `account` happy-path verification from local mock-server tests to live-first Alpaca Paper coverage.
 - Load live test credentials from a local root `.env` via `ALPACA_TRADE_API_KEY` and `ALPACA_TRADE_SECRET_KEY`.
-- Remove the old mock-backed `account` black-box tests now that local transport coverage and live happy-path coverage are split cleanly.
+- Remove the old `account` black-box tests against the local mock server now that local transport coverage and live happy-path coverage are split cleanly.
 
 ## 0.1.3 - 2026-04-04
 
@@ -22,7 +28,7 @@
 
 - Reorder the planned Trading HTTP REST phases to prioritize lower-complexity read-only families before mutation-heavy trading resources.
 - Document how to start the Phase 1 `alpaca-trade-mock` server and list the currently available Phase 1 routes.
-- Document the current Phase 1 test flow, including the workspace test command and the self-starting mock-backed black-box tests.
+- Document the current Phase 1 test flow, including the workspace test command and the self-starting local mock-server black-box tests.
 
 ## 0.1.1 - 2026-04-04
 
@@ -34,7 +40,7 @@
 
 - Release the initial `account` phase for `alpaca-trade` with `paper` as the default environment.
 - Release `alpaca-trade-mock` with in-memory `/v2/account`, `/health`, and `/__admin/*` test-control routes.
-- Add mock-backed integration coverage for successful account reads, rate limiting, and malformed JSON failures.
+- Add local mock-server integration coverage for successful account reads, rate limiting, and malformed JSON failures.
 
 ## 0.0.5 - 2026-04-04
 
@@ -44,7 +50,7 @@
 
 ## 0.0.4 - 2026-04-04
 
-- Add mock-backed black-box tests for successful account reads through `alpaca_trade::Client`.
+- Add local mock-server black-box tests for successful account reads through `alpaca_trade::Client`.
 - Add integration coverage for `429` retry-after propagation and malformed JSON deserialization failures.
 - Wire `alpaca-trade` package tests to the in-repo `alpaca-trade-mock` server crate.
 

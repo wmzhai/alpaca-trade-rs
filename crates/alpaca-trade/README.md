@@ -18,8 +18,8 @@ use alpaca_trade::Client;
 
 # async fn demo() -> Result<(), alpaca_trade::Error> {
 let client = Client::builder()
-    .api_key(std::env::var("APCA_API_KEY_ID").expect("APCA_API_KEY_ID is required"))
-    .secret_key(std::env::var("APCA_API_SECRET_KEY").expect("APCA_API_SECRET_KEY is required"))
+    .api_key(std::env::var("ALPACA_TRADE_API_KEY").expect("ALPACA_TRADE_API_KEY is required"))
+    .secret_key(std::env::var("ALPACA_TRADE_SECRET_KEY").expect("ALPACA_TRADE_SECRET_KEY is required"))
     .build()?;
 
 let account = client.account().get().await?;

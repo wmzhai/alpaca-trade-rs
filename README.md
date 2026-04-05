@@ -7,16 +7,15 @@
 - Phase 1 scope: `account`
 - API surface: non-crypto Alpaca Trading HTTP REST only
 - Explicit exclusions: stream / websocket APIs, crypto trading APIs
-- Workspace crates:
-  - `alpaca-trade`
-  - `alpaca-trade-mock`
+- Published crate: `alpaca-trade`
+- Internal workspace tool: `alpaca-trade-mock`
 - Default client environment: Alpaca Paper Trading
-- Primary test backend: local in-memory mock server
+- Phase 1 happy-path testing: live-first against the official paper endpoint
 
 ## Workspace
 
 - `crates/alpaca-trade`: async Trading API client
-- `crates/alpaca-trade-mock`: minimal contract-oriented mock server
+- `crates/alpaca-trade-mock`: internal workspace helper for future market-hours-sensitive Trading API tests
 - `tools/api-coverage/trading-api.json`: family-level coverage manifest for Trading HTTP REST audit work
 
 ## Phase 1 API
@@ -26,8 +25,8 @@ use alpaca_trade::Client;
 
 # async fn demo() -> Result<(), alpaca_trade::Error> {
 let client = Client::builder()
-    .api_key(std::env::var("APCA_API_KEY_ID").expect("APCA_API_KEY_ID is required"))
-    .secret_key(std::env::var("APCA_API_SECRET_KEY").expect("APCA_API_SECRET_KEY is required"))
+    .api_key(std::env::var("ALPACA_TRADE_API_KEY").expect("ALPACA_TRADE_API_KEY is required"))
+    .secret_key(std::env::var("ALPACA_TRADE_SECRET_KEY").expect("ALPACA_TRADE_SECRET_KEY is required"))
     .build()?;
 
 let account = client.account().get().await?;
@@ -36,42 +35,13 @@ println!("{}", account.status);
 # }
 ```
 
-## Phase 1 Mock Server
-
-Start the local mock server with the default bind address:
-
-```bash
-cargo run -p alpaca-trade-mock
-```
-
-The current default bind address is `127.0.0.1:9817`.
-
-If you need a custom address, run:
-
-```bash
-cargo run -p alpaca-trade-mock -- --bind 127.0.0.1:9901
-```
-
-Current Phase 1 routes:
-
-- `GET /health`
-- `GET /v2/account`
-- `POST /__admin/reset`
-- `POST /__admin/faults`
-- `DELETE /__admin/faults`
-
 ## Phase 1 Testing
 
-Run the full automated test suite with:
+Create a local root `.env` file with `ALPACA_TRADE_API_KEY=...` and `ALPACA_TRADE_SECRET_KEY=...`.
 
-```bash
-cargo test --workspace
-```
+Run the full automated test suite with `cargo test --workspace -- --nocapture`.
 
-If you only want the mock route contract tests, run:
-
-```bash
-cargo test -p alpaca-trade-mock --test app_routes -- --nocapture
-```
-
-The current black-box client tests start their own mock server via `spawn_test_server()`, so they do not require a manually started mock process.
+Notes:
+- `account_model` and `account_transport` stay local/offline.
+- `account_live` talks to the official Alpaca Paper API.
+- If `.env` credentials are missing, the live test prints a skip message and exits successfully.

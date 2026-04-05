@@ -4,10 +4,11 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Minimal in-memory mock server for the non-crypto Alpaca Trading HTTP API"
+publish = false
+description = "Internal mock server scaffold for alpaca-trade workspace testing"
 readme = "README.md"
 keywords = ["alpaca", "mock", "trading", "testing"]
-categories = ["api-bindings", "development-tools::testing"]
+categories = ["development-tools::testing"]
 exclude = ["/.agents/**", "/.github/**", "/AGENTS.md", "/docs/superpowers/**", "/memory/**"]
 
 [lib]

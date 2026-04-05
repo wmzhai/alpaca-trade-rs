@@ -54,9 +54,9 @@
           "reference": "https://docs.alpaca.markets/reference/getaccount-1",
           "mirror_status": "implemented",
           "convenience_status": "implemented",
-          "mock_status": "implemented",
-          "live_test_status": "not_started",
-          "notes": "Phase 1 shipped in v0.1.0."
+          "mock_status": "not_planned",
+          "live_test_status": "implemented",
+          "notes": "Phase 1 shipped in v0.1.0; normal-path verification was realigned to live-first in v0.1.6."
         }
       ]
     },
