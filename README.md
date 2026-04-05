@@ -15,7 +15,7 @@
 - Testing taxonomy: `live_readonly`, `paper_mutating_with_cleanup`, `mock_stateful`, `fault_injection_only`
 - Default retry behavior: automatic retry is limited to `GET`
 - Retry semantics: `max_get_attempts` counts total attempts, so `1` disables retry and `2` means one retry after the first failed `GET`
-- Benchmark note: no dedicated benchmark because Phase 5 only adds two straightforward read-only GET endpoints without a new local performance-sensitive loop
+- Benchmark note: Phase 5 does not add a dedicated benchmark because assets introduces two straightforward read-only GET endpoints without a new local performance-sensitive loop
 
 ## Workspace
 
