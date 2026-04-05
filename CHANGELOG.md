@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3 - 2026-04-05
+
+- Implement the `Asset` mirror model for the official `assets` resource, including optional `cusip`, margin requirement, and `attributes` fields.
+- Add `AssetsClient::list()` and wire `GET /v2/assets` through the shared authenticated transport.
+- Add local model coverage plus list-path/auth/query coverage for the Phase 5 `assets` family.
+
 ## 0.4.2 - 2026-04-05
 
 - Add the Phase 5 `assets` public API skeleton with `Client::assets()`, `AssetsClient`, `Asset`, and `ListRequest`.

@@ -1,16 +1,32 @@
 use std::sync::Arc;
 use std::{fmt, fmt::Debug};
 
+use crate::assets::{Asset, ListRequest};
 use crate::client::Inner;
+use crate::error::Error;
+use crate::transport::endpoint::Endpoint;
+use crate::transport::request::RequestParts;
 
 #[derive(Clone)]
 pub struct AssetsClient {
-    pub(crate) _inner: Arc<Inner>,
+    inner: Arc<Inner>,
 }
 
 impl AssetsClient {
     pub(crate) fn new(inner: Arc<Inner>) -> Self {
-        Self { _inner: inner }
+        Self { inner }
+    }
+
+    pub async fn list(&self, request: ListRequest) -> Result<Vec<Asset>, Error> {
+        self.inner
+            .http
+            .send_json(
+                &self.inner.base_url,
+                &Endpoint::assets_list(),
+                &self.inner.auth,
+                RequestParts::with_query(request.to_query()),
+            )
+            .await
     }
 }
 

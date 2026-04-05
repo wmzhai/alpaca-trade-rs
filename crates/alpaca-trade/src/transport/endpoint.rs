@@ -38,6 +38,10 @@ impl Endpoint {
         Self::new("calendar.list", Method::GET, "/v2/calendar", true)
     }
 
+    pub(crate) fn assets_list() -> Self {
+        Self::new("assets.list", Method::GET, "/v2/assets", true)
+    }
+
     #[allow(dead_code)]
     pub(crate) fn asset_get(symbol_or_asset_id: &str) -> Result<Self, Error> {
         let symbol_or_asset_id = required_path_segment("symbol_or_asset_id", symbol_or_asset_id)?;
@@ -75,6 +79,16 @@ mod tests {
     use crate::error::Error;
 
     #[test]
+    fn assets_list_uses_metadata_backed_request_shape() {
+        let endpoint = Endpoint::assets_list();
+
+        assert_eq!(endpoint.name(), "assets.list");
+        assert_eq!(endpoint.method(), Method::GET);
+        assert_eq!(endpoint.path(), "/v2/assets");
+        assert!(endpoint.requires_auth());
+    }
+
+    #[test]
     fn asset_get_uses_metadata_backed_request_shape() {
         let endpoint = Endpoint::asset_get("AAPL").expect("asset endpoint should build");
 
@@ -104,6 +118,7 @@ mod tests {
         let account = Endpoint::account_get();
         let clock = Endpoint::clock_get();
         let calendar = Endpoint::calendar_list();
+        let assets = Endpoint::assets_list();
 
         assert_eq!(account.name(), "account.get");
         assert_eq!(account.method(), Method::GET);
@@ -119,5 +134,10 @@ mod tests {
         assert_eq!(calendar.method(), Method::GET);
         assert_eq!(calendar.path(), "/v2/calendar");
         assert!(calendar.requires_auth());
+
+        assert_eq!(assets.name(), "assets.list");
+        assert_eq!(assets.method(), Method::GET);
+        assert_eq!(assets.path(), "/v2/assets");
+        assert!(assets.requires_auth());
     }
 }
