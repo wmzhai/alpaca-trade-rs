@@ -8,6 +8,7 @@ Async Rust client for the non-crypto Alpaca Trading HTTP API.
 - Implemented resources: `account`, `clock`, `calendar`
 - Next resource phase: `assets` (Phase 5)
 - Default retry behavior: automatic retry is limited to `GET`
+- Retry semantics: `max_get_attempts` counts total attempts, so `1` disables retry and `2` means one retry after the first failed `GET`
 
 ## Defaults
 

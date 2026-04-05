@@ -14,6 +14,7 @@
 - Default client environment: Alpaca Paper
 - Testing taxonomy: `live_readonly`, `paper_mutating_with_cleanup`, `mock_stateful`, `fault_injection_only`
 - Default retry behavior: automatic retry is limited to `GET`
+- Retry semantics: `max_get_attempts` counts total attempts, so `1` disables retry and `2` means one retry after the first failed `GET`
 - Benchmark note: foundation does not add a dedicated benchmark because it changes shared transport semantics rather than introducing a new high-volume endpoint
 
 ## Workspace

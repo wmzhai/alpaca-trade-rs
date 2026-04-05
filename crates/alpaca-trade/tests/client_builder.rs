@@ -234,6 +234,36 @@ fn builder_rejects_whitespace_only_credentials() {
 }
 
 #[test]
+fn builder_rejects_api_key_with_invalid_header_value() {
+    let error = Client::builder()
+        .api_key("key\ninvalid")
+        .secret_key("secret")
+        .build()
+        .expect_err("invalid api_key header value must fail at build time");
+
+    assert!(matches!(
+        error,
+        Error::InvalidConfiguration(message)
+            if message.contains("invalid api_key header value")
+    ));
+}
+
+#[test]
+fn builder_rejects_secret_key_with_invalid_header_value() {
+    let error = Client::builder()
+        .api_key("key")
+        .secret_key("secret\ninvalid")
+        .build()
+        .expect_err("invalid secret_key header value must fail at build time");
+
+    assert!(matches!(
+        error,
+        Error::InvalidConfiguration(message)
+            if message.contains("invalid secret_key header value")
+    ));
+}
+
+#[test]
 fn builder_rejects_invalid_base_url() {
     let error = Client::builder()
         .api_key("key")
@@ -621,9 +651,10 @@ async fn builder_observer_redacts_userinfo_from_request_start_url() {
 }
 
 #[tokio::test]
-async fn builder_retry_policy_drives_transport_behavior() {
+async fn builder_retry_policy_total_attempts_1_disables_retry() {
     let server = TestServer::spawn(unavailable_response());
     let mut retry_policy = RetryPolicy::trading_safe();
+    // `max_get_attempts` counts the initial request, so `1` disables retry.
     retry_policy.max_get_attempts = 1;
     retry_policy.base_delay_ms = 0;
 

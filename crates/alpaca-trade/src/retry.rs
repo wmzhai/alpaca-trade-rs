@@ -1,11 +1,24 @@
+/// Trading-safe retry configuration for idempotent HTTP requests.
+///
+/// The current policy only retries `GET` requests for `429` and `5xx` responses.
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RetryPolicy {
+    /// Maximum total number of `GET` attempts, including the first request.
+    ///
+    /// For example:
+    /// - `1` disables retry and sends the request only once
+    /// - `2` allows one retry after the first failed `GET`
     pub max_get_attempts: usize,
+    /// Base delay in milliseconds multiplied by the current attempt number.
     pub base_delay_ms: u64,
 }
 
 impl RetryPolicy {
+    /// Returns the default Trading-safe policy.
+    ///
+    /// This policy allows up to two total `GET` attempts, which means one retry
+    /// after the initial failed `GET`.
     pub fn trading_safe() -> Self {
         Self {
             max_get_attempts: 2,
@@ -50,5 +63,18 @@ mod tests {
         assert!(policy.should_retry(&Method::GET, Some(StatusCode::TOO_MANY_REQUESTS), 1));
         assert!(!policy.should_retry(&Method::POST, Some(StatusCode::TOO_MANY_REQUESTS), 1));
         assert!(!policy.should_retry(&Method::DELETE, Some(StatusCode::INTERNAL_SERVER_ERROR), 1,));
+    }
+
+    #[test]
+    fn max_get_attempts_counts_total_attempts() {
+        let policy = RetryPolicy {
+            max_get_attempts: 1,
+            base_delay_ms: 0,
+        };
+
+        assert!(
+            !policy.should_retry(&Method::GET, Some(StatusCode::TOO_MANY_REQUESTS), 1),
+            "one total attempt disables retry"
+        );
     }
 }

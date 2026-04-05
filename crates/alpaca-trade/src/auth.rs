@@ -62,6 +62,9 @@ impl Auth {
                     ));
                 }
 
+                validate_header_value("api_key", &api_key)?;
+                validate_header_value("secret_key", &secret_key)?;
+
                 Ok(Self {
                     api_key,
                     secret_key,
@@ -78,17 +81,23 @@ impl Auth {
         &self,
         request: reqwest::RequestBuilder,
     ) -> Result<reqwest::RequestBuilder, Error> {
-        let api_key = HeaderValue::from_str(&self.api_key).map_err(|error| {
-            Error::InvalidConfiguration(format!("invalid api_key header value: {error}"))
-        })?;
-        let secret_key = HeaderValue::from_str(&self.secret_key).map_err(|error| {
-            Error::InvalidConfiguration(format!("invalid secret_key header value: {error}"))
-        })?;
+        let api_key = parse_header_value("api_key", &self.api_key)?;
+        let secret_key = parse_header_value("secret_key", &self.secret_key)?;
 
         Ok(request
             .header(APCA_API_KEY_ID.clone(), api_key)
             .header(APCA_API_SECRET_KEY.clone(), secret_key))
     }
+}
+
+fn validate_header_value(label: &str, value: &str) -> Result<(), Error> {
+    let _ = parse_header_value(label, value)?;
+    Ok(())
+}
+
+fn parse_header_value(label: &str, value: &str) -> Result<HeaderValue, Error> {
+    HeaderValue::from_str(value)
+        .map_err(|error| Error::InvalidConfiguration(format!("invalid {label} header value: {error}")))
 }
 
 impl Debug for Auth {

@@ -721,23 +721,21 @@ mod tests {
             crate::RetryPolicy::trading_safe(),
             observer.clone(),
         );
-        let invalid_auth = crate::auth::Auth::new(
-            Some("key\nwith-newline".to_owned()),
-            Some("secret".to_owned()),
-        )
-        .expect("auth should allow non-empty credentials");
+        let auth =
+            crate::auth::Auth::new(Some("key".to_owned()), Some("secret".to_owned()))
+                .expect("auth should build");
 
         let error = client
             .send_json::<serde_json::Value>(
-                "http://127.0.0.1:1",
+                "http://[::1",
                 &crate::transport::endpoint::Endpoint::account_get(),
-                &invalid_auth,
+                &auth,
                 empty_request_parts(),
             )
             .await
-            .expect_err("invalid header value should fail before network send");
+            .expect_err("invalid URL should fail before network send");
 
-        assert!(matches!(error, crate::Error::InvalidConfiguration(_)));
+        assert!(matches!(error, crate::Error::Transport { .. }));
         assert_eq!(
             observer.snapshot(),
             vec![
