@@ -507,6 +507,44 @@ fn builder_rejects_non_default_timeout_after_custom_reqwest_client() {
     ));
 }
 
+#[test]
+fn builder_rejects_default_timeout_after_custom_reqwest_client() {
+    let error = Client::builder()
+        .api_key("key")
+        .secret_key("secret")
+        .reqwest_client(reqwest::Client::new())
+        .timeout(Duration::from_secs(30))
+        .build()
+        .expect_err("explicit default timeout after custom client must fail");
+
+    assert!(matches!(
+        error,
+        Error::InvalidConfiguration(message)
+            if message.contains("reqwest_client")
+                && message.contains("timeout")
+                && message.contains("provided reqwest::Client")
+    ));
+}
+
+#[test]
+fn builder_rejects_custom_reqwest_client_after_default_timeout() {
+    let error = Client::builder()
+        .api_key("key")
+        .secret_key("secret")
+        .timeout(Duration::from_secs(30))
+        .reqwest_client(reqwest::Client::new())
+        .build()
+        .expect_err("custom client after explicit default timeout must fail");
+
+    assert!(matches!(
+        error,
+        Error::InvalidConfiguration(message)
+            if message.contains("reqwest_client")
+                && message.contains("timeout")
+                && message.contains("provided reqwest::Client")
+    ));
+}
+
 #[tokio::test]
 async fn builder_observer_receives_success_lifecycle_callbacks() {
     let server = TestServer::spawn(success_response());

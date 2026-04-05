@@ -48,6 +48,7 @@ pub struct ClientBuilder {
     reqwest_client: Option<reqwest::Client>,
     observer: Arc<dyn Observer>,
     retry_policy: RetryPolicy,
+    timeout_configured: bool,
     observer_configured: bool,
     retry_policy_configured: bool,
 }
@@ -70,6 +71,7 @@ impl Default for ClientBuilder {
             reqwest_client: None,
             observer: Arc::new(NoopObserver),
             retry_policy: RetryPolicy::trading_safe(),
+            timeout_configured: false,
             observer_configured: false,
             retry_policy_configured: false,
         }
@@ -112,6 +114,7 @@ impl Debug for ClientBuilder {
         let _ = &self.reqwest_client;
         let _ = &self.observer;
         let _ = &self.retry_policy;
+        let _ = &self.timeout_configured;
         let _ = &self.observer_configured;
         let _ = &self.retry_policy_configured;
         f.debug_struct("ClientBuilder").finish_non_exhaustive()
@@ -172,6 +175,7 @@ impl ClientBuilder {
 
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
+        self.timeout_configured = true;
         self
     }
 
@@ -218,9 +222,9 @@ impl ClientBuilder {
             .map_err(|error| Error::InvalidConfiguration(format!("invalid base_url: {error}")))?;
         let http = match self.reqwest_client {
             Some(client) => {
-                if self.timeout != DEFAULT_TIMEOUT {
+                if self.timeout_configured {
                     return Err(Error::InvalidConfiguration(
-                        "reqwest_client() cannot be combined with a non-default timeout(); configure the timeout on the provided reqwest::Client".to_owned(),
+                        "reqwest_client() cannot be combined with timeout(); configure the timeout on the provided reqwest::Client".to_owned(),
                     ));
                 }
 
