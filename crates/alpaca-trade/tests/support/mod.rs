@@ -1,12 +1,20 @@
 use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::sync::{Mutex, MutexGuard, OnceLock};
 
 static DOTENV: OnceLock<()> = OnceLock::new();
+static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 #[derive(Debug, Clone)]
 pub struct Credentials {
     pub api_key: String,
     pub secret_key: String,
+}
+
+pub fn env_lock() -> MutexGuard<'static, ()> {
+    ENV_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn repo_root_dotenv_path() -> PathBuf {
@@ -42,6 +50,8 @@ mod tests {
 
     #[test]
     fn read_trimmed_env_rejects_blank_values() {
+        let _env_guard = env_lock();
+
         unsafe {
             std::env::set_var("ALPACA_TRADE_API_KEY", "   ");
         }
@@ -55,6 +65,8 @@ mod tests {
 
     #[test]
     fn read_trimmed_env_trims_non_blank_values() {
+        let _env_guard = env_lock();
+
         unsafe {
             std::env::set_var("ALPACA_TRADE_SECRET_KEY", "  secret  ");
         }
