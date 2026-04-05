@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 - 2026-04-05
+
+- Fail fast during `Client::builder().build()` when `api_key` or `secret_key` cannot be encoded as HTTP header values, so invalid credentials no longer survive until the first authenticated request.
+- Clarify that `RetryPolicy::max_get_attempts` counts total `GET` attempts, with `1` disabling retry and `2` allowing one retry after the initial failed `GET`.
+- Re-run the Phase 4 foundation verification suite on top of the tightened credential validation and retry semantics documentation.
+
 ## 0.4.0 - 2026-04-05
 
 - Complete Phase 4 by shipping the shared Trading HTTP REST foundation before `assets`.
