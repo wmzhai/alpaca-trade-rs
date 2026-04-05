@@ -220,22 +220,24 @@ async fn asset_get_rejects_invalid_path_segment_before_send() {
         "HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}".to_owned(),
     ]);
 
-    let error = Client::builder()
-        .api_key("key")
-        .secret_key("secret")
-        .base_url(server.base_url())
-        .build()
-        .expect("client should build")
-        .assets()
-        .get("AAPL/US")
-        .await
-        .expect_err("reserved path characters must fail before send");
+    for value in ["AAPL/US", "AAPL%2FUS"] {
+        let error = Client::builder()
+            .api_key("key")
+            .secret_key("secret")
+            .base_url(server.base_url())
+            .build()
+            .expect("client should build")
+            .assets()
+            .get(value)
+            .await
+            .expect_err("reserved path characters must fail before send");
 
-    match error {
-        Error::InvalidRequest(message) => {
-            assert!(message.contains("symbol_or_asset_id"));
+        match error {
+            Error::InvalidRequest(message) => {
+                assert!(message.contains("symbol_or_asset_id"));
+            }
+            other => panic!("expected invalid request error, got {other:?}"),
         }
-        other => panic!("expected invalid request error, got {other:?}"),
     }
 
     let requests = server.into_requests();

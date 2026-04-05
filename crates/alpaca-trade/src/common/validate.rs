@@ -8,13 +8,27 @@ pub(crate) fn required_path_segment(name: &'static str, value: &str) -> Result<S
         return Err(Error::InvalidRequest(format!("{name} must not be blank")));
     }
 
-    if trimmed.chars().any(|ch| matches!(ch, '/' | '?' | '#')) {
+    if trimmed.chars().any(|ch| matches!(ch, '/' | '?' | '#'))
+        || contains_encoded_reserved_path_characters(trimmed)
+    {
         return Err(Error::InvalidRequest(format!(
             "{name} must not contain reserved path characters"
         )));
     }
 
     Ok(trimmed.to_owned())
+}
+
+fn contains_encoded_reserved_path_characters(value: &str) -> bool {
+    let bytes = value.as_bytes();
+
+    bytes.windows(3).any(|window| {
+        window[0] == b'%'
+            && matches!(
+                (window[1].to_ascii_lowercase(), window[2].to_ascii_lowercase()),
+                (b'2', b'f') | (b'3', b'f') | (b'2', b'3')
+            )
+    })
 }
 
 #[allow(dead_code)]
@@ -54,7 +68,15 @@ mod tests {
 
     #[test]
     fn required_path_segment_rejects_reserved_url_characters() {
-        for value in ["AAPL/US", "AAPL?draft=true", "AAPL#fragment"] {
+        for value in [
+            "AAPL/US",
+            "AAPL?draft=true",
+            "AAPL#fragment",
+            "AAPL%2FUS",
+            "AAPL%2fus",
+            "AAPL%3Fdraft=true",
+            "AAPL%23fragment",
+        ] {
             let error = required_path_segment("symbol_or_asset_id", value)
                 .expect_err("reserved URL characters should fail");
 
