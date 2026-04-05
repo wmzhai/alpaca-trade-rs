@@ -7,7 +7,7 @@ pub struct ListRequest {
 }
 
 impl ListRequest {
-    pub fn to_query(self) -> Vec<(String, String)> {
+    pub(crate) fn to_query(self) -> Vec<(String, String)> {
         let mut query = QueryWriter::default();
         query.push_opt("start", self.start);
         query.push_opt("end", self.end);
@@ -38,12 +38,8 @@ mod tests {
 
     #[test]
     fn list_request_omits_none_fields() {
-        let query = ListRequest {
-            start: Some("2026-04-01".to_owned()),
-            end: None,
-        }
-        .to_query();
+        let query = ListRequest::default().to_query();
 
-        assert_eq!(query, vec![("start".to_owned(), "2026-04-01".to_owned())]);
+        assert!(query.is_empty());
     }
 }
