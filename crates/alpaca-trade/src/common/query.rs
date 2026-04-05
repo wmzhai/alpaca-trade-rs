@@ -33,7 +33,9 @@ impl QueryWriter {
             .collect::<Vec<_>>()
             .join(",");
 
-        self.push(key, value);
+        if !value.is_empty() {
+            self.push(key, value);
+        }
     }
 
     pub(crate) fn finish(self) -> Vec<(String, String)> {
@@ -67,5 +69,14 @@ mod tests {
             query.finish(),
             vec![("symbols".to_owned(), "AAPL,MSFT,TSLA".to_owned())]
         );
+    }
+
+    #[test]
+    fn push_csv_omits_empty_iterables() {
+        let mut query = QueryWriter::default();
+
+        query.push_csv("symbols", std::iter::empty::<&str>());
+
+        assert!(query.finish().is_empty());
     }
 }

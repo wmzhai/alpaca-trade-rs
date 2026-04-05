@@ -74,6 +74,7 @@ mod tests {
     use reqwest::Method;
 
     use super::Endpoint;
+    use crate::error::Error;
 
     #[test]
     fn asset_get_uses_metadata_backed_request_shape() {
@@ -83,6 +84,21 @@ mod tests {
         assert_eq!(endpoint.method(), Method::GET);
         assert_eq!(endpoint.path(), "/v2/assets/AAPL");
         assert!(endpoint.requires_auth());
+    }
+
+    #[test]
+    fn asset_get_rejects_reserved_url_characters_in_path_segments() {
+        for value in ["AAPL/US", "AAPL?draft=true", "AAPL#fragment"] {
+            let error =
+                Endpoint::asset_get(value).expect_err("reserved URL characters should fail");
+
+            match error {
+                Error::InvalidRequest(message) => {
+                    assert!(message.contains("symbol_or_asset_id"));
+                }
+                other => panic!("expected invalid request error, got {other:?}"),
+            }
+        }
     }
 
     #[test]

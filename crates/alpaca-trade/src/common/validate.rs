@@ -8,6 +8,12 @@ pub(crate) fn required_path_segment(name: &'static str, value: &str) -> Result<S
         return Err(Error::InvalidRequest(format!("{name} must not be blank")));
     }
 
+    if trimmed.chars().any(|ch| matches!(ch, '/' | '?' | '#')) {
+        return Err(Error::InvalidRequest(format!(
+            "{name} must not contain reserved path characters"
+        )));
+    }
+
     Ok(trimmed.to_owned())
 }
 
@@ -43,6 +49,21 @@ mod tests {
                 assert!(message.contains("symbol_or_asset_id"));
             }
             other => panic!("expected invalid request error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn required_path_segment_rejects_reserved_url_characters() {
+        for value in ["AAPL/US", "AAPL?draft=true", "AAPL#fragment"] {
+            let error = required_path_segment("symbol_or_asset_id", value)
+                .expect_err("reserved URL characters should fail");
+
+            match error {
+                Error::InvalidRequest(message) => {
+                    assert!(message.contains("symbol_or_asset_id"));
+                }
+                other => panic!("expected invalid request error, got {other:?}"),
+            }
         }
     }
 

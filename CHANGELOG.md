@@ -2,7 +2,7 @@
 
 ## 0.3.2 - 2026-04-05
 
-- Add shared request guardrails for trimmed path validation, ordered query writing, CSV query encoding, and an initial pagination `collect_all()` landing point.
+- Add shared request guardrails for trimmed and reserved-character-safe path validation, ordered query writing, empty-aware CSV query encoding, and an initial pagination `collect_all()` landing point.
 - Replace the static endpoint enum with metadata-backed endpoints that carry stable operation names, HTTP methods, auth requirements, and dynamic path support for asset lookups.
 - Introduce `InvalidRequest` errors so request-shaping failures surface before any network call is attempted.
 
