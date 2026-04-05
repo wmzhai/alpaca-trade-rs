@@ -7,6 +7,7 @@ pub struct ListRequest {
 }
 
 impl ListRequest {
+    #[allow(dead_code)]
     pub(crate) fn to_query(self) -> Vec<(String, String)> {
         let mut query = QueryWriter::default();
         query.push_opt("start", self.start);
