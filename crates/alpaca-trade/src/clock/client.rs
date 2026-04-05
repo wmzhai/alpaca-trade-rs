@@ -1,20 +1,21 @@
 use std::sync::Arc;
+use std::{fmt, fmt::Debug};
 
 use crate::client::Inner;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ClockClient {
-    #[allow(dead_code)]
-    inner: Arc<Inner>,
+    _inner: Arc<Inner>,
 }
 
 impl ClockClient {
     pub(crate) fn new(inner: Arc<Inner>) -> Self {
-        Self { inner }
+        Self { _inner: inner }
     }
+}
 
-    #[allow(dead_code)]
-    pub(crate) fn inner(&self) -> &Arc<Inner> {
-        &self.inner
+impl Debug for ClockClient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ClockClient").finish_non_exhaustive()
     }
 }
