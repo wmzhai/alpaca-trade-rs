@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.4 - 2026-04-05
+
+- Expand `ClientBuilder` so it can load credentials from the official `APCA_API_KEY_ID` / `APCA_API_SECRET_KEY` names or from caller-supplied custom env var names.
+- Allow callers to inject a preconfigured `reqwest::Client` while preserving its default headers and other transport settings on real Trading REST requests.
+- Wire builder-level observer hooks and Trading-safe retry policy customization into the authenticated HTTP transport path, with `NoopObserver` and `RetryPolicy::trading_safe()` as the defaults.
+- Add regression coverage for env credential precedence, injected transport clients, observer lifecycle callbacks, and the public builder retry/observer surface.
+
 ## 0.3.3 - 2026-04-05
 
 - Replace the single GET-only transport helper with a unified HTTP pipeline that can shape query/body requests, accept `204 No Content`, and emit richer request metadata.

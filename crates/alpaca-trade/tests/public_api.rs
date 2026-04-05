@@ -1,5 +1,5 @@
 use alpaca_trade::{
-    Client,
+    Client, NoopObserver, RetryPolicy,
     account::Account,
     calendar::{Calendar, ListRequest},
     clock::Clock,
@@ -39,6 +39,19 @@ fn public_api_exposes_account_calendar_and_clock_types_and_accessors() {
     let _ = Calendar::default();
     let _ = ListRequest::default();
     let _ = Clock::default();
+}
+
+#[test]
+fn public_api_exposes_builder_retry_and_observer_surface() {
+    let client = Client::builder()
+        .api_key(API_KEY_SENTINEL)
+        .secret_key(SECRET_KEY_SENTINEL)
+        .observer(NoopObserver)
+        .retry_policy(RetryPolicy::trading_safe())
+        .build()
+        .expect("client should build");
+
+    let _ = client.account();
 }
 
 #[test]

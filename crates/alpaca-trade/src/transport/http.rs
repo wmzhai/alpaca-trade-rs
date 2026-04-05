@@ -26,6 +26,7 @@ pub(crate) struct HttpClient {
 }
 
 impl HttpClient {
+    #[allow(dead_code)]
     pub(crate) fn new(timeout: Duration) -> Result<Self, Error> {
         let client = reqwest::Client::builder()
             .timeout(timeout)

@@ -3,10 +3,15 @@ use std::time::Duration;
 use std::{fmt, fmt::Debug};
 
 use crate::account::AccountClient;
-use crate::auth::Auth;
+use crate::auth::{
+    Auth, DEFAULT_API_KEY_ENV, DEFAULT_SECRET_KEY_ENV, load_credentials_from_env,
+    load_credentials_from_env_names,
+};
 use crate::calendar::CalendarClient;
 use crate::clock::ClockClient;
 use crate::error::Error;
+use crate::observer::{NoopObserver, Observer};
+use crate::retry::RetryPolicy;
 use crate::transport::http::HttpClient;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -36,9 +41,19 @@ enum Environment {
 pub struct ClientBuilder {
     api_key: Option<String>,
     secret_key: Option<String>,
+    credentials_env: Option<CredentialsEnv>,
     environment: Environment,
     base_url: Option<String>,
     timeout: Duration,
+    reqwest_client: Option<reqwest::Client>,
+    observer: Arc<dyn Observer>,
+    retry_policy: RetryPolicy,
+}
+
+#[derive(Debug, Clone)]
+struct CredentialsEnv {
+    api_key_env: String,
+    secret_key_env: String,
 }
 
 impl Default for ClientBuilder {
@@ -46,9 +61,13 @@ impl Default for ClientBuilder {
         Self {
             api_key: None,
             secret_key: None,
+            credentials_env: None,
             environment: Environment::Paper,
             base_url: None,
             timeout: DEFAULT_TIMEOUT,
+            reqwest_client: None,
+            observer: Arc::new(NoopObserver),
+            retry_policy: RetryPolicy::trading_safe(),
         }
     }
 }
@@ -82,21 +101,51 @@ impl Debug for ClientBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let _ = &self.api_key;
         let _ = &self.secret_key;
+        let _ = &self.credentials_env;
         let _ = &self.environment;
         let _ = &self.base_url;
         let _ = &self.timeout;
+        let _ = &self.reqwest_client;
+        let _ = &self.observer;
+        let _ = &self.retry_policy;
         f.debug_struct("ClientBuilder").finish_non_exhaustive()
     }
 }
 
 impl ClientBuilder {
     pub fn api_key(mut self, api_key: impl Into<String>) -> Self {
+        self.credentials_env = None;
         self.api_key = Some(api_key.into());
         self
     }
 
     pub fn secret_key(mut self, secret_key: impl Into<String>) -> Self {
+        self.credentials_env = None;
         self.secret_key = Some(secret_key.into());
+        self
+    }
+
+    pub fn credentials_from_env(mut self) -> Self {
+        self.api_key = None;
+        self.secret_key = None;
+        self.credentials_env = Some(CredentialsEnv {
+            api_key_env: DEFAULT_API_KEY_ENV.to_owned(),
+            secret_key_env: DEFAULT_SECRET_KEY_ENV.to_owned(),
+        });
+        self
+    }
+
+    pub fn credentials_from_env_names(
+        mut self,
+        api_key_env: impl Into<String>,
+        secret_key_env: impl Into<String>,
+    ) -> Self {
+        self.api_key = None;
+        self.secret_key = None;
+        self.credentials_env = Some(CredentialsEnv {
+            api_key_env: api_key_env.into(),
+            secret_key_env: secret_key_env.into(),
+        });
         self
     }
 
@@ -120,15 +169,53 @@ impl ClientBuilder {
         self
     }
 
+    pub fn reqwest_client(mut self, client: reqwest::Client) -> Self {
+        self.reqwest_client = Some(client);
+        self
+    }
+
+    pub fn observer<O>(mut self, observer: O) -> Self
+    where
+        O: Observer,
+    {
+        self.observer = Arc::new(observer);
+        self
+    }
+
+    pub fn retry_policy(mut self, retry_policy: RetryPolicy) -> Self {
+        self.retry_policy = retry_policy;
+        self
+    }
+
     pub fn build(self) -> Result<Client, Error> {
-        let auth = Auth::new(self.api_key, self.secret_key)?;
-        let http = HttpClient::new(self.timeout)?;
+        let (api_key, secret_key) = match self.credentials_env.as_ref() {
+            Some(credentials_env)
+                if credentials_env.api_key_env == DEFAULT_API_KEY_ENV
+                    && credentials_env.secret_key_env == DEFAULT_SECRET_KEY_ENV =>
+            {
+                load_credentials_from_env()?
+            }
+            Some(credentials_env) => load_credentials_from_env_names(
+                &credentials_env.api_key_env,
+                &credentials_env.secret_key_env,
+            )?,
+            None => (self.api_key, self.secret_key),
+        };
+        let auth = Auth::new(api_key, secret_key)?;
         let base_url = self.base_url.unwrap_or_else(|| match self.environment {
             Environment::Paper => PAPER_BASE_URL.to_owned(),
             Environment::Live => LIVE_BASE_URL.to_owned(),
         });
         reqwest::Url::parse(&base_url)
             .map_err(|error| Error::InvalidConfiguration(format!("invalid base_url: {error}")))?;
+        let reqwest_client = match self.reqwest_client {
+            Some(client) => client,
+            None => reqwest::Client::builder()
+                .timeout(self.timeout)
+                .build()
+                .map_err(Error::from_reqwest)?,
+        };
+        let http = HttpClient::with_client(reqwest_client, self.retry_policy, self.observer);
 
         Ok(Client {
             inner: Arc::new(Inner {
