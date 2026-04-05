@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.6 - 2026-04-05
+
+- Realign the public docs and local design docs around the Phase 4 `foundation` milestone and the new Phase 5 `assets` follow-up.
+- Insert the shared `foundation` milestone and revised post-foundation phase order into `tools/api-coverage/trading-api.json`.
+- Document the Phase 4 benchmark rationale: no dedicated benchmark was added because foundation changes shared transport semantics rather than introducing a new public high-volume endpoint.
+
 ## 0.3.5 - 2026-04-05
 
 - Move the existing `account`, `clock`, and `calendar` clients onto the new foundation transport pipeline.

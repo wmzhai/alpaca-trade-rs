@@ -2,11 +2,12 @@
 
 Async Rust client for the non-crypto Alpaca Trading HTTP API.
 
-## Current Coverage
+## Current Milestone
 
-- `account`
-- `clock`
-- `calendar`
+- Phase 4 milestone: `foundation`
+- Implemented resources: `account`, `clock`, `calendar`
+- Next resource phase: `assets` (Phase 5)
+- Default retry behavior: automatic retry is limited to `GET`
 
 ## Defaults
 

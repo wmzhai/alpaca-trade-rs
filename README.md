@@ -4,14 +4,17 @@
 
 ## Current Status
 
-- Phase 3 scope: `account`, `clock`, `calendar`
+- Phase 4 milestone: `foundation`
+- Implemented resources: `account`, `clock`, `calendar`
+- Next resource phase: `assets` (Phase 5)
 - API surface: non-crypto Alpaca Trading HTTP REST only
 - Explicit exclusions: stream / websocket APIs, crypto trading APIs
 - Published crate: `alpaca-trade`
 - Internal workspace tool: `alpaca-trade-mock`
-- Default client environment: Alpaca Paper Trading
-- Phase 3 happy-path testing: live-first, with credential-gated Alpaca Paper smoke coverage when credentials are available
-- `calendar` stays live-first and is not part of `alpaca-trade-mock`
+- Default client environment: Alpaca Paper
+- Testing taxonomy: `live_readonly`, `paper_mutating_with_cleanup`, `mock_stateful`, `fault_injection_only`
+- Default retry behavior: automatic retry is limited to `GET`
+- Benchmark note: foundation does not add a dedicated benchmark because it changes shared transport semantics rather than introducing a new high-volume endpoint
 
 ## Workspace
 
@@ -19,7 +22,7 @@
 - `crates/alpaca-trade-mock`: internal workspace helper for future market-hours-sensitive Trading API tests
 - `tools/api-coverage/trading-api.json`: family-level coverage manifest for Trading HTTP REST audit work
 
-## Phase 3 API
+## Implemented API
 
 ```rust
 use alpaca_trade::{Client, calendar::ListRequest};
@@ -42,7 +45,7 @@ println!("{} {}", rows[0].date, rows[0].open);
 # }
 ```
 
-## Phase 3 Testing
+## Testing
 
 Create a local root `.env` file with either:
 
@@ -53,6 +56,7 @@ Run the full automated test suite with `cargo test --workspace -- --nocapture`.
 
 Notes:
 - `account_model`, `account_transport`, `clock_model`, `clock_transport`, `calendar_model`, and `calendar_transport` stay local/offline.
-- `account_live`, `clock_live`, and `calendar_live` are the credential-gated live smoke paths against the official Alpaca Paper API.
+- `account_live`, `clock_live`, and `calendar_live` are the current `live_readonly` credential-gated smoke paths against the official Alpaca Paper API.
+- Future mutating families will follow the `paper_mutating_with_cleanup` or `mock_stateful` taxonomy instead of reusing the read-only smoke path.
 - The live test helper accepts both the standard `APCA_*` names and the repo-local `ALPACA_TRADE_*` aliases.
-- If `.env` credentials are missing, the live test prints a skip message and exits successfully, so a green local run may not include a real paper request.
+- If `.env` credentials are missing, the live tests print skip messages and exit successfully, so a green local run may not include a real paper request.

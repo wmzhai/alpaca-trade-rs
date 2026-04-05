@@ -100,7 +100,7 @@
     },
     {
       "family": "assets",
-      "phase": 4,
+      "phase": 5,
       "public_entry": "assets()",
       "status": "planned",
       "operations": [
@@ -130,7 +130,7 @@
     },
     {
       "family": "options_contracts",
-      "phase": 5,
+      "phase": 6,
       "public_entry": "options_contracts()",
       "status": "planned",
       "operations": [
@@ -159,8 +159,216 @@
       ]
     },
     {
+      "family": "orders",
+      "phase": 7,
+      "public_entry": "orders()",
+      "status": "planned",
+      "operations": [
+        {
+          "operation": "list_orders",
+          "method": "GET",
+          "path": "/v2/orders",
+          "reference": "https://docs.alpaca.markets/v1.3/reference/getallorders",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Lists orders with official filtering query parameters."
+        },
+        {
+          "operation": "create_order",
+          "method": "POST",
+          "path": "/v2/orders",
+          "reference": "https://docs.alpaca.markets/reference/postorder",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Non-crypto Trading HTTP REST scope only."
+        },
+        {
+          "operation": "cancel_all_orders",
+          "method": "DELETE",
+          "path": "/v2/orders",
+          "reference": "https://docs.alpaca.markets/reference/deleteallorders-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Collection-level bulk cancellation endpoint."
+        },
+        {
+          "operation": "get_order_by_id",
+          "method": "GET",
+          "path": "/v2/orders/{order_id}",
+          "reference": "https://docs.alpaca.markets/v1.3/reference/getorderbyorderid",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "ID-addressed order lookup."
+        },
+        {
+          "operation": "replace_order_by_id",
+          "method": "PATCH",
+          "path": "/v2/orders/{order_id}",
+          "reference": "https://docs.alpaca.markets/reference/patchorderbyorderid-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Official replace-order endpoint."
+        },
+        {
+          "operation": "cancel_order_by_id",
+          "method": "DELETE",
+          "path": "/v2/orders/{order_id}",
+          "reference": "https://docs.alpaca.markets/reference/deleteorderbyorderid-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Single-order cancellation endpoint."
+        },
+        {
+          "operation": "get_order_by_client_order_id",
+          "method": "GET",
+          "path": "/v2/orders:by_client_order_id",
+          "reference": "https://docs.alpaca.markets/reference/getorderbyclientorderid",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Alias endpoint using client order ID query parameters."
+        }
+      ]
+    },
+    {
+      "family": "positions",
+      "phase": 8,
+      "public_entry": "positions()",
+      "status": "planned",
+      "operations": [
+        {
+          "operation": "list_positions",
+          "method": "GET",
+          "path": "/v2/positions",
+          "reference": "https://docs.alpaca.markets/reference/getallopenpositions",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Lists the account's open positions."
+        },
+        {
+          "operation": "close_all_positions",
+          "method": "DELETE",
+          "path": "/v2/positions",
+          "reference": "https://docs.alpaca.markets/reference/deleteallopenpositions-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Bulk liquidation endpoint."
+        },
+        {
+          "operation": "get_position_by_symbol_or_asset_id",
+          "method": "GET",
+          "path": "/v2/positions/{symbol_or_asset_id}",
+          "reference": "https://docs.alpaca.markets/reference/getopenposition",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "ID or symbol addressed position lookup."
+        },
+        {
+          "operation": "close_position_by_symbol_or_asset_id",
+          "method": "DELETE",
+          "path": "/v2/positions/{symbol_or_asset_id}",
+          "reference": "https://docs.alpaca.markets/v1.3/reference/deleteopenposition",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Single-position liquidation endpoint."
+        },
+        {
+          "operation": "exercise_options_position",
+          "method": "POST",
+          "path": "/v2/positions/{symbol_or_contract_id}/exercise",
+          "reference": "https://docs.alpaca.markets/reference/optionexercise",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Options exercise endpoint retained because options are in scope for Trading HTTP REST."
+        },
+        {
+          "operation": "do_not_exercise_options_position",
+          "method": "POST",
+          "path": "/v2/positions/{symbol_or_contract_id}/do-not-exercise",
+          "reference": "https://docs.alpaca.markets/v1.4.2/reference/positions-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "DNE override endpoint for option positions."
+        }
+      ]
+    },
+    {
+      "family": "activities",
+      "phase": 9,
+      "public_entry": "activities()",
+      "status": "planned",
+      "operations": [
+        {
+          "operation": "list_account_activities",
+          "method": "GET",
+          "path": "/v2/account/activities",
+          "reference": "https://docs.alpaca.markets/v1.3/reference/account-activities",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Pagination-sensitive activity feed."
+        },
+        {
+          "operation": "list_account_activities_by_type",
+          "method": "GET",
+          "path": "/v2/account/activities/{activity_type}",
+          "reference": "https://docs.alpaca.markets/reference/getaccountactivitiesbyactivitytype",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Type-filtered activity endpoint."
+        }
+      ]
+    },
+    {
+      "family": "portfolio_history",
+      "phase": 10,
+      "public_entry": "portfolio_history()",
+      "status": "planned",
+      "operations": [
+        {
+          "operation": "get_account_portfolio_history",
+          "method": "GET",
+          "path": "/v2/account/portfolio/history",
+          "reference": "https://docs.alpaca.markets/reference/getaccountportfoliohistory-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Historical account equity and P/L endpoint."
+        }
+      ]
+    },
+    {
       "family": "account_configurations",
-      "phase": 6,
+      "phase": 11,
       "public_entry": "account_configurations()",
       "status": "planned",
       "operations": [
@@ -190,7 +398,7 @@
     },
     {
       "family": "watchlists",
-      "phase": 7,
+      "phase": 12,
       "public_entry": "watchlists()",
       "status": "planned",
       "operations": [
@@ -316,214 +524,29 @@
           "notes": "Name-addressed alias endpoint with query parameter `name`."
         }
       ]
-    },
-    {
-      "family": "orders",
-      "phase": 8,
-      "public_entry": "orders()",
-      "status": "planned",
-      "operations": [
-        {
-          "operation": "list_orders",
-          "method": "GET",
-          "path": "/v2/orders",
-          "reference": "https://docs.alpaca.markets/v1.3/reference/getallorders",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Lists orders with official filtering query parameters."
-        },
-        {
-          "operation": "create_order",
-          "method": "POST",
-          "path": "/v2/orders",
-          "reference": "https://docs.alpaca.markets/reference/postorder",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Non-crypto Trading HTTP REST scope only."
-        },
-        {
-          "operation": "cancel_all_orders",
-          "method": "DELETE",
-          "path": "/v2/orders",
-          "reference": "https://docs.alpaca.markets/reference/deleteallorders-1",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Collection-level bulk cancellation endpoint."
-        },
-        {
-          "operation": "get_order_by_id",
-          "method": "GET",
-          "path": "/v2/orders/{order_id}",
-          "reference": "https://docs.alpaca.markets/v1.3/reference/getorderbyorderid",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "ID-addressed order lookup."
-        },
-        {
-          "operation": "replace_order_by_id",
-          "method": "PATCH",
-          "path": "/v2/orders/{order_id}",
-          "reference": "https://docs.alpaca.markets/reference/patchorderbyorderid-1",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Official replace-order endpoint."
-        },
-        {
-          "operation": "cancel_order_by_id",
-          "method": "DELETE",
-          "path": "/v2/orders/{order_id}",
-          "reference": "https://docs.alpaca.markets/reference/deleteorderbyorderid-1",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Single-order cancellation endpoint."
-        },
-        {
-          "operation": "get_order_by_client_order_id",
-          "method": "GET",
-          "path": "/v2/orders:by_client_order_id",
-          "reference": "https://docs.alpaca.markets/reference/getorderbyclientorderid",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Alias endpoint using client order ID query parameters."
-        }
-      ]
-    },
-    {
-      "family": "positions",
-      "phase": 9,
-      "public_entry": "positions()",
-      "status": "planned",
-      "operations": [
-        {
-          "operation": "list_positions",
-          "method": "GET",
-          "path": "/v2/positions",
-          "reference": "https://docs.alpaca.markets/reference/getallopenpositions",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Lists the account's open positions."
-        },
-        {
-          "operation": "close_all_positions",
-          "method": "DELETE",
-          "path": "/v2/positions",
-          "reference": "https://docs.alpaca.markets/reference/deleteallopenpositions-1",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Bulk liquidation endpoint."
-        },
-        {
-          "operation": "get_position_by_symbol_or_asset_id",
-          "method": "GET",
-          "path": "/v2/positions/{symbol_or_asset_id}",
-          "reference": "https://docs.alpaca.markets/reference/getopenposition",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "ID or symbol addressed position lookup."
-        },
-        {
-          "operation": "close_position_by_symbol_or_asset_id",
-          "method": "DELETE",
-          "path": "/v2/positions/{symbol_or_asset_id}",
-          "reference": "https://docs.alpaca.markets/v1.3/reference/deleteopenposition",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Single-position liquidation endpoint."
-        },
-        {
-          "operation": "exercise_options_position",
-          "method": "POST",
-          "path": "/v2/positions/{symbol_or_contract_id}/exercise",
-          "reference": "https://docs.alpaca.markets/reference/optionexercise",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Options exercise endpoint retained because options are in scope for Trading HTTP REST."
-        },
-        {
-          "operation": "do_not_exercise_options_position",
-          "method": "POST",
-          "path": "/v2/positions/{symbol_or_contract_id}/do-not-exercise",
-          "reference": "https://docs.alpaca.markets/v1.4.2/reference/positions-1",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "DNE override endpoint for option positions."
-        }
-      ]
-    },
-    {
-      "family": "activities",
-      "phase": 10,
-      "public_entry": "activities()",
-      "status": "planned",
-      "operations": [
-        {
-          "operation": "list_account_activities",
-          "method": "GET",
-          "path": "/v2/account/activities",
-          "reference": "https://docs.alpaca.markets/v1.3/reference/account-activities",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Pagination-sensitive activity feed."
-        },
-        {
-          "operation": "list_account_activities_by_type",
-          "method": "GET",
-          "path": "/v2/account/activities/{activity_type}",
-          "reference": "https://docs.alpaca.markets/reference/getaccountactivitiesbyactivitytype",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Type-filtered activity endpoint."
-        }
-      ]
-    },
-    {
-      "family": "portfolio_history",
-      "phase": 11,
-      "public_entry": "portfolio_history()",
-      "status": "planned",
-      "operations": [
-        {
-          "operation": "get_account_portfolio_history",
-          "method": "GET",
-          "path": "/v2/account/portfolio/history",
-          "reference": "https://docs.alpaca.markets/reference/getaccountportfoliohistory-1",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Historical account equity and P/L endpoint."
-        }
-      ]
     }
+  ],
+  "milestones": [
+    {
+      "phase": 4,
+      "name": "foundation",
+      "kind": "shared-infrastructure",
+      "status": "implemented",
+      "notes": "Shared transport, builder, retry, and test-taxonomy foundation completed before assets. No dedicated benchmark was added because foundation changes shared transport semantics rather than a new public high-volume endpoint."
+    }
+  ],
+  "phase_order": [
+    "account",
+    "clock",
+    "calendar",
+    "foundation",
+    "assets",
+    "options_contracts",
+    "orders",
+    "positions",
+    "activities",
+    "portfolio_history",
+    "account_configurations",
+    "watchlists"
   ]
 }
