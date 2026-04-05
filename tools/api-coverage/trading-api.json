@@ -83,18 +83,18 @@
       "family": "calendar",
       "phase": 3,
       "public_entry": "calendar()",
-      "status": "planned",
+      "status": "implemented",
       "operations": [
         {
           "operation": "list_calendar",
           "method": "GET",
           "path": "/v2/calendar",
           "reference": "https://docs.alpaca.markets/v1.3/reference/getcalendar",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Read-only market calendar endpoint."
+          "mirror_status": "implemented",
+          "convenience_status": "implemented",
+          "mock_status": "not_planned",
+          "live_test_status": "credential_gated",
+          "notes": "Phase 3 ships `calendar` as a live-first read-only resource with official `start` / `end` query support, and `calendar` stays out of `alpaca-trade-mock`."
         }
       ]
     },

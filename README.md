@@ -4,13 +4,13 @@
 
 ## Current Status
 
-- Phase 2 scope: `account`, `clock`
+- Phase 3 scope: `account`, `clock`, `calendar`
 - API surface: non-crypto Alpaca Trading HTTP REST only
 - Explicit exclusions: stream / websocket APIs, crypto trading APIs
 - Published crate: `alpaca-trade`
 - Internal workspace tool: `alpaca-trade-mock`
 - Default client environment: Alpaca Paper Trading
-- Phase 2 happy-path testing: live-first, with credential-gated Alpaca Paper smoke coverage when credentials are available
+- Phase 3 happy-path testing: live-first, with credential-gated Alpaca Paper smoke coverage when credentials are available
 
 ## Workspace
 
@@ -18,10 +18,10 @@
 - `crates/alpaca-trade-mock`: internal workspace helper for future market-hours-sensitive Trading API tests
 - `tools/api-coverage/trading-api.json`: family-level coverage manifest for Trading HTTP REST audit work
 
-## Phase 2 API
+## Phase 3 API
 
 ```rust
-use alpaca_trade::Client;
+use alpaca_trade::{Client, calendar::ListRequest};
 
 # async fn demo() -> Result<(), alpaca_trade::Error> {
 let client = Client::builder()
@@ -29,13 +29,19 @@ let client = Client::builder()
     .secret_key(std::env::var("APCA_API_SECRET_KEY").expect("APCA_API_SECRET_KEY is required"))
     .build()?;
 
-let clock = client.clock().get().await?;
-println!("{} {}", clock.timestamp, clock.is_open);
+let calendar = client
+    .calendar()
+    .list(ListRequest {
+        start: Some("2026-04-01".into()),
+        end: Some("2026-04-03".into()),
+    })
+    .await?;
+println!("{} {} {}", calendar[0].date, calendar[0].open, calendar[0].close);
 # Ok(())
 # }
 ```
 
-## Phase 2 Testing
+## Phase 3 Testing
 
 Create a local root `.env` file with either:
 
@@ -45,7 +51,7 @@ Create a local root `.env` file with either:
 Run the full automated test suite with `cargo test --workspace -- --nocapture`.
 
 Notes:
-- `account_model`, `account_transport`, `clock_model`, and `clock_transport` stay local/offline.
-- `account_live` and `clock_live` are the credential-gated live smoke paths against the official Alpaca Paper API.
+- `account_model`, `account_transport`, `clock_model`, `clock_transport`, `calendar_model`, and `calendar_transport` stay local/offline.
+- `account_live`, `clock_live`, and `calendar_live` are the credential-gated live smoke paths against the official Alpaca Paper API.
 - The live test helper accepts both the standard `APCA_*` names and the repo-local `ALPACA_TRADE_*` aliases.
 - If `.env` credentials are missing, the live test prints a skip message and exits successfully, so a green local run may not include a real paper request.

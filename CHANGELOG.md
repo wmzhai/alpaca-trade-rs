@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3 - 2026-04-05
+
+- Add the credential-gated `calendar_live` Alpaca Paper smoke test for the Phase 3 read-only market calendar resource.
+- Update the public workspace docs to include `calendar` in the supported Trading HTTP REST scope and example flow.
+- Mark `calendar` as implemented, live-first, and mock-free in the Trading API coverage manifest.
+
 ## 0.2.2 - 2026-04-05
 
 - Implement `GET /v2/calendar` through `CalendarClient::list()` using the shared authenticated HTTP transport.
