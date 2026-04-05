@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 - 2026-04-05
+
+- Add the Phase 3 `calendar` public API skeleton with `Client::calendar()`, `CalendarClient`, `Calendar`, and `ListRequest`.
+- Add local request-shape coverage for the official `start` and `end` query words.
+- Keep the initial Phase 3 scaffold thin while transport and live coverage land in later tasks.
+
 ## 0.2.0 - 2026-04-05
 
 - Finish Phase 2 by shipping the live-first `clock` Trading HTTP REST resource.

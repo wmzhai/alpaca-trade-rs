@@ -1,5 +1,6 @@
 pub mod account;
 mod auth;
+pub mod calendar;
 mod client;
 pub mod clock;
 mod common;
