@@ -99,6 +99,7 @@ async fn clock_get_hits_official_path_and_sends_auth_headers() {
         .expect("clock request should succeed");
 
     assert_eq!(clock.timestamp, "2024-04-05T13:30:00Z");
+    assert!(clock.is_open);
 
     let request = server.into_request();
     assert_eq!(request.request_line, "GET /v2/clock HTTP/1.1");
