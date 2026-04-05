@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 - 2026-04-05
+
+- Finish Phase 3 by shipping the live-first `calendar` Trading HTTP REST resource.
+- Keep `calendar` outside `alpaca-trade-mock` and validate it through the official Alpaca Paper smoke path.
+- Roll the workspace forward from the Phase 2 patch series to the Phase 3 MINOR release.
+
 ## 0.2.3 - 2026-04-05
 
 - Add the credential-gated `calendar_live` Alpaca Paper smoke test for the Phase 3 read-only market calendar resource.

@@ -11,6 +11,7 @@
 - Internal workspace tool: `alpaca-trade-mock`
 - Default client environment: Alpaca Paper Trading
 - Phase 3 happy-path testing: live-first, with credential-gated Alpaca Paper smoke coverage when credentials are available
+- `calendar` stays live-first and is not part of `alpaca-trade-mock`
 
 ## Workspace
 
