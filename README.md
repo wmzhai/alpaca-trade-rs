@@ -29,14 +29,14 @@ let client = Client::builder()
     .secret_key(std::env::var("APCA_API_SECRET_KEY").expect("APCA_API_SECRET_KEY is required"))
     .build()?;
 
-let calendar = client
+let rows = client
     .calendar()
     .list(ListRequest {
         start: Some("2026-04-01".into()),
         end: Some("2026-04-03".into()),
     })
     .await?;
-println!("{} {} {}", calendar[0].date, calendar[0].open, calendar[0].close);
+println!("{} {}", rows[0].date, rows[0].open);
 # Ok(())
 # }
 ```
