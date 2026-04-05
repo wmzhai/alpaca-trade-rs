@@ -1,0 +1,529 @@
+{
+  "manifest_version": 1,
+  "generated_at": "2026-04-04",
+  "scope": {
+    "api": "trading-http-rest",
+    "default_environment": "paper",
+    "included_asset_scope": "non-crypto",
+    "excluded_scopes": [
+      "stream",
+      "websocket",
+      "crypto",
+      "broker",
+      "fix"
+    ],
+    "coverage_style": "major-resource-families-core-operations"
+  },
+  "sources": [
+    {
+      "name": "Authentication",
+      "url": "https://docs.alpaca.markets/docs/authentication"
+    },
+    {
+      "name": "Trading API reference root",
+      "url": "https://docs.alpaca.markets/v1.3/reference"
+    },
+    {
+      "name": "Working with /account",
+      "url": "https://docs.alpaca.markets/docs/working-with-account"
+    },
+    {
+      "name": "Working with /positions",
+      "url": "https://docs.alpaca.markets/v1.3/docs/working-with-positions"
+    },
+    {
+      "name": "Placing Orders",
+      "url": "https://docs.alpaca.markets/docs/trading/orders/"
+    },
+    {
+      "name": "Options Trading",
+      "url": "https://docs.alpaca.markets/docs/options-trading"
+    }
+  ],
+  "families": [
+    {
+      "family": "account",
+      "phase": 1,
+      "public_entry": "account()",
+      "status": "implemented",
+      "operations": [
+        {
+          "operation": "get_account",
+          "method": "GET",
+          "path": "/v2/account",
+          "reference": "https://docs.alpaca.markets/reference/getaccount-1",
+          "mirror_status": "implemented",
+          "convenience_status": "implemented",
+          "mock_status": "implemented",
+          "live_test_status": "not_started",
+          "notes": "Phase 1 shipped in v0.1.0."
+        }
+      ]
+    },
+    {
+      "family": "clock",
+      "phase": 2,
+      "public_entry": "clock()",
+      "status": "planned",
+      "operations": [
+        {
+          "operation": "get_clock",
+          "method": "GET",
+          "path": "/v2/clock",
+          "reference": "https://docs.alpaca.markets/reference/getclock",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Read-only market clock endpoint."
+        }
+      ]
+    },
+    {
+      "family": "calendar",
+      "phase": 3,
+      "public_entry": "calendar()",
+      "status": "planned",
+      "operations": [
+        {
+          "operation": "list_calendar",
+          "method": "GET",
+          "path": "/v2/calendar",
+          "reference": "https://docs.alpaca.markets/v1.3/reference/getcalendar",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Read-only market calendar endpoint."
+        }
+      ]
+    },
+    {
+      "family": "assets",
+      "phase": 4,
+      "public_entry": "assets()",
+      "status": "planned",
+      "operations": [
+        {
+          "operation": "list_assets",
+          "method": "GET",
+          "path": "/v2/assets",
+          "reference": "https://docs.alpaca.markets/reference/get-v2-assets",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Manifest scope excludes crypto usage even though the official endpoint can return crypto assets when filtered that way."
+        },
+        {
+          "operation": "get_asset_by_symbol_or_asset_id",
+          "method": "GET",
+          "path": "/v2/assets/{symbol_or_asset_id}",
+          "reference": "https://docs.alpaca.markets/reference/get-v2-assets-symbol_or_asset_id",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Client scope will document and test non-crypto trading assets only."
+        }
+      ]
+    },
+    {
+      "family": "account_configurations",
+      "phase": 5,
+      "public_entry": "account_configurations()",
+      "status": "planned",
+      "operations": [
+        {
+          "operation": "get_account_configurations",
+          "method": "GET",
+          "path": "/v2/account/configurations",
+          "reference": "https://docs.alpaca.markets/reference/account-configurations-2",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Configuration read endpoint."
+        },
+        {
+          "operation": "patch_account_configurations",
+          "method": "PATCH",
+          "path": "/v2/account/configurations",
+          "reference": "https://docs.alpaca.markets/reference/patchaccountconfig-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Configuration update endpoint."
+        }
+      ]
+    },
+    {
+      "family": "watchlists",
+      "phase": 6,
+      "public_entry": "watchlists()",
+      "status": "planned",
+      "operations": [
+        {
+          "operation": "list_watchlists",
+          "method": "GET",
+          "path": "/v2/watchlists",
+          "reference": "https://docs.alpaca.markets/reference/getwatchlists-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Core collection read endpoint."
+        },
+        {
+          "operation": "create_watchlist",
+          "method": "POST",
+          "path": "/v2/watchlists",
+          "reference": "https://docs.alpaca.markets/reference/postwatchlist",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Creates a watchlist with an optional initial asset set."
+        },
+        {
+          "operation": "get_watchlist_by_id",
+          "method": "GET",
+          "path": "/v2/watchlists/{watchlist_id}",
+          "reference": "https://docs.alpaca.markets/reference/getwatchlistbyid-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "ID-addressed watchlist read endpoint."
+        },
+        {
+          "operation": "update_watchlist_by_id",
+          "method": "PUT",
+          "path": "/v2/watchlists/{watchlist_id}",
+          "reference": "https://docs.alpaca.markets/reference/updatewatchlistbyid-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Replaces watchlist name and/or symbols."
+        },
+        {
+          "operation": "delete_watchlist_by_id",
+          "method": "DELETE",
+          "path": "/v2/watchlists/{watchlist_id}",
+          "reference": "https://docs.alpaca.markets/reference/deletewatchlistbyid-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Permanent watchlist deletion."
+        },
+        {
+          "operation": "add_asset_to_watchlist_by_id",
+          "method": "POST",
+          "path": "/v2/watchlists/{watchlist_id}",
+          "reference": "https://docs.alpaca.markets/v1.3/reference/addassettowatchlist",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Appends a symbol to the watchlist."
+        },
+        {
+          "operation": "delete_symbol_from_watchlist_by_id",
+          "method": "DELETE",
+          "path": "/v2/watchlists/{watchlist_id}/{symbol}",
+          "reference": "https://docs.alpaca.markets/reference/removeassetfromwatchlist-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Removes a symbol from the watchlist."
+        },
+        {
+          "operation": "get_watchlist_by_name",
+          "method": "GET",
+          "path": "/v2/watchlists:by_name",
+          "reference": "https://docs.alpaca.markets/reference/getwatchlistbyname",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Name-addressed alias endpoint with query parameter `name`."
+        },
+        {
+          "operation": "update_watchlist_by_name",
+          "method": "PUT",
+          "path": "/v2/watchlists:by_name",
+          "reference": "https://docs.alpaca.markets/reference/updatewatchlistbyname-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Name-addressed alias endpoint with query parameter `name`."
+        },
+        {
+          "operation": "add_asset_to_watchlist_by_name",
+          "method": "POST",
+          "path": "/v2/watchlists:by_name",
+          "reference": "https://docs.alpaca.markets/v1.3/reference/addassettowatchlistbyname",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Name-addressed alias endpoint with query parameter `name`."
+        },
+        {
+          "operation": "delete_watchlist_by_name",
+          "method": "DELETE",
+          "path": "/v2/watchlists:by_name",
+          "reference": "https://docs.alpaca.markets/reference/deletewatchlistbyname-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Name-addressed alias endpoint with query parameter `name`."
+        }
+      ]
+    },
+    {
+      "family": "orders",
+      "phase": 7,
+      "public_entry": "orders()",
+      "status": "planned",
+      "operations": [
+        {
+          "operation": "list_orders",
+          "method": "GET",
+          "path": "/v2/orders",
+          "reference": "https://docs.alpaca.markets/v1.3/reference/getallorders",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Lists orders with official filtering query parameters."
+        },
+        {
+          "operation": "create_order",
+          "method": "POST",
+          "path": "/v2/orders",
+          "reference": "https://docs.alpaca.markets/reference/postorder",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Non-crypto Trading HTTP REST scope only."
+        },
+        {
+          "operation": "cancel_all_orders",
+          "method": "DELETE",
+          "path": "/v2/orders",
+          "reference": "https://docs.alpaca.markets/reference/deleteallorders-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Collection-level bulk cancellation endpoint."
+        },
+        {
+          "operation": "get_order_by_id",
+          "method": "GET",
+          "path": "/v2/orders/{order_id}",
+          "reference": "https://docs.alpaca.markets/v1.3/reference/getorderbyorderid",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "ID-addressed order lookup."
+        },
+        {
+          "operation": "replace_order_by_id",
+          "method": "PATCH",
+          "path": "/v2/orders/{order_id}",
+          "reference": "https://docs.alpaca.markets/reference/patchorderbyorderid-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Official replace-order endpoint."
+        },
+        {
+          "operation": "cancel_order_by_id",
+          "method": "DELETE",
+          "path": "/v2/orders/{order_id}",
+          "reference": "https://docs.alpaca.markets/reference/deleteorderbyorderid-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Single-order cancellation endpoint."
+        },
+        {
+          "operation": "get_order_by_client_order_id",
+          "method": "GET",
+          "path": "/v2/orders:by_client_order_id",
+          "reference": "https://docs.alpaca.markets/reference/getorderbyclientorderid",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Alias endpoint using client order ID query parameters."
+        }
+      ]
+    },
+    {
+      "family": "positions",
+      "phase": 8,
+      "public_entry": "positions()",
+      "status": "planned",
+      "operations": [
+        {
+          "operation": "list_positions",
+          "method": "GET",
+          "path": "/v2/positions",
+          "reference": "https://docs.alpaca.markets/reference/getallopenpositions",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Lists the account's open positions."
+        },
+        {
+          "operation": "close_all_positions",
+          "method": "DELETE",
+          "path": "/v2/positions",
+          "reference": "https://docs.alpaca.markets/reference/deleteallopenpositions-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Bulk liquidation endpoint."
+        },
+        {
+          "operation": "get_position_by_symbol_or_asset_id",
+          "method": "GET",
+          "path": "/v2/positions/{symbol_or_asset_id}",
+          "reference": "https://docs.alpaca.markets/reference/getopenposition",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "ID or symbol addressed position lookup."
+        },
+        {
+          "operation": "close_position_by_symbol_or_asset_id",
+          "method": "DELETE",
+          "path": "/v2/positions/{symbol_or_asset_id}",
+          "reference": "https://docs.alpaca.markets/v1.3/reference/deleteopenposition",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Single-position liquidation endpoint."
+        },
+        {
+          "operation": "exercise_options_position",
+          "method": "POST",
+          "path": "/v2/positions/{symbol_or_contract_id}/exercise",
+          "reference": "https://docs.alpaca.markets/reference/optionexercise",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Options exercise endpoint retained because options are in scope for Trading HTTP REST."
+        },
+        {
+          "operation": "do_not_exercise_options_position",
+          "method": "POST",
+          "path": "/v2/positions/{symbol_or_contract_id}/do-not-exercise",
+          "reference": "https://docs.alpaca.markets/v1.4.2/reference/positions-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "DNE override endpoint for option positions."
+        }
+      ]
+    },
+    {
+      "family": "activities",
+      "phase": 9,
+      "public_entry": "activities()",
+      "status": "planned",
+      "operations": [
+        {
+          "operation": "list_account_activities",
+          "method": "GET",
+          "path": "/v2/account/activities",
+          "reference": "https://docs.alpaca.markets/v1.3/reference/account-activities",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Pagination-sensitive activity feed."
+        },
+        {
+          "operation": "list_account_activities_by_type",
+          "method": "GET",
+          "path": "/v2/account/activities/{activity_type}",
+          "reference": "https://docs.alpaca.markets/reference/getaccountactivitiesbyactivitytype",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Type-filtered activity endpoint."
+        }
+      ]
+    },
+    {
+      "family": "portfolio_history",
+      "phase": 10,
+      "public_entry": "portfolio_history()",
+      "status": "planned",
+      "operations": [
+        {
+          "operation": "get_account_portfolio_history",
+          "method": "GET",
+          "path": "/v2/account/portfolio/history",
+          "reference": "https://docs.alpaca.markets/reference/getaccountportfoliohistory-1",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Historical account equity and P/L endpoint."
+        }
+      ]
+    },
+    {
+      "family": "options_contracts",
+      "phase": 11,
+      "public_entry": "options_contracts()",
+      "status": "planned",
+      "operations": [
+        {
+          "operation": "list_option_contracts",
+          "method": "GET",
+          "path": "/v2/options/contracts",
+          "reference": "https://docs.alpaca.markets/reference/get-options-contracts",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Options contract discovery endpoint."
+        },
+        {
+          "operation": "get_option_contract_by_symbol_or_id",
+          "method": "GET",
+          "path": "/v2/options/contracts/{symbol_or_id}",
+          "reference": "https://docs.alpaca.markets/reference/get-option-contract-symbol_or_id",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Single contract lookup endpoint."
+        }
+      ]
+    }
+  ]
+}

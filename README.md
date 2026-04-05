@@ -1,10 +1,12 @@
 # alpaca-trade-rs
 
-`alpaca-trade-rs` is a Rust workspace for the non-crypto Alpaca Trading HTTP API.
+`alpaca-trade-rs` is a Rust workspace for the non-crypto Alpaca Trading HTTP REST API.
 
 ## Current Status
 
 - Phase 1 scope: `account`
+- API surface: non-crypto Alpaca Trading HTTP REST only
+- Explicit exclusions: stream / websocket APIs, crypto trading APIs
 - Workspace crates:
   - `alpaca-trade`
   - `alpaca-trade-mock`
@@ -15,6 +17,7 @@
 
 - `crates/alpaca-trade`: async Trading API client
 - `crates/alpaca-trade-mock`: minimal contract-oriented mock server
+- `tools/api-coverage/trading-api.json`: family-level coverage manifest for Trading HTTP REST audit work
 
 ## Phase 1 API
 

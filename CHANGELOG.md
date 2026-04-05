@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 - 2026-04-04
+
+- Add `tools/api-coverage/trading-api.json` to track major non-crypto Alpaca Trading HTTP REST resource families and operation status.
+- Explicitly document that this project excludes stream / websocket APIs and crypto trading scope.
+- Align local API sync and release-audit scope around Trading HTTP REST only.
+
 ## 0.1.0 - 2026-04-04
 
 - Release the initial `account` phase for `alpaca-trade` with `paper` as the default environment.
