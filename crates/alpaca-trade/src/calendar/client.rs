@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::{fmt, fmt::Debug};
 
-use crate::client::Inner;
 use crate::calendar::{Calendar, ListRequest};
+use crate::client::Inner;
 use crate::error::Error;
 use crate::transport::endpoint::Endpoint;
 

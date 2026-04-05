@@ -4,8 +4,8 @@ use std::net::TcpListener;
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
 
-use alpaca_trade::calendar::ListRequest;
 use alpaca_trade::Client;
+use alpaca_trade::calendar::ListRequest;
 
 #[derive(Debug)]
 struct CapturedRequest {
@@ -77,7 +77,7 @@ impl TestServer {
 }
 
 fn calendar_json() -> &'static str {
-    r#"[{"close":"16:00","date":"2026-04-01","open":"09:30","session_close":"20:00","session_open":"04:00","settlement_date":"2026-04-02"}]"#
+    r#"[{"close":"16:00","date":"2026-04-01","open":"09:30","session_close":"2000","session_open":"0400","settlement_date":"2026-04-02"}]"#
 }
 
 #[tokio::test]
