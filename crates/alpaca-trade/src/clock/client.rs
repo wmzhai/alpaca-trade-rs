@@ -5,6 +5,7 @@ use crate::client::Inner;
 use crate::clock::Clock;
 use crate::error::Error;
 use crate::transport::endpoint::Endpoint;
+use crate::transport::request::RequestParts;
 
 #[derive(Clone)]
 pub struct ClockClient {
@@ -19,11 +20,14 @@ impl ClockClient {
     pub async fn get(&self) -> Result<Clock, Error> {
         self._inner
             .http
-            .get_json(
+            .send_json(
                 &self._inner.base_url,
-                Endpoint::clock_get(),
+                &Endpoint::clock_get(),
                 &self._inner.auth,
-                vec![],
+                RequestParts {
+                    query: Vec::new(),
+                    json_body: None,
+                },
             )
             .await
     }

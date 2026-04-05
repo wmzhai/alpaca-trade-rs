@@ -5,6 +5,7 @@ use crate::calendar::{Calendar, ListRequest};
 use crate::client::Inner;
 use crate::error::Error;
 use crate::transport::endpoint::Endpoint;
+use crate::transport::request::RequestParts;
 
 #[derive(Clone)]
 pub struct CalendarClient {
@@ -19,11 +20,11 @@ impl CalendarClient {
     pub async fn list(&self, request: ListRequest) -> Result<Vec<Calendar>, Error> {
         self.inner
             .http
-            .get_json(
+            .send_json(
                 &self.inner.base_url,
-                Endpoint::calendar_list(),
+                &Endpoint::calendar_list(),
                 &self.inner.auth,
-                request.to_query(),
+                RequestParts::with_query(request.to_query()),
             )
             .await
     }

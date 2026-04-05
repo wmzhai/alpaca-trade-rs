@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.5 - 2026-04-05
+
+- Move the existing `account`, `clock`, and `calendar` clients onto the new foundation transport pipeline.
+- Rework public transport tests around a shared scripted TCP server and enriched error metadata assertions.
+- Keep the public observer and retry configuration surface covered for future foundation-aware resources.
+
 ## 0.3.4 - 2026-04-05
 
 - Expand `ClientBuilder` so it can load credentials from the official `APCA_API_KEY_ID` / `APCA_API_SECRET_KEY` names or from caller-supplied custom env var names.

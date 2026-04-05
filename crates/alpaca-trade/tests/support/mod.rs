@@ -1,3 +1,6 @@
+pub mod http_server;
+pub use http_server::TestServer;
+
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;

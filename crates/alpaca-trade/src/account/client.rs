@@ -5,6 +5,7 @@ use crate::account::Account;
 use crate::client::Inner;
 use crate::error::Error;
 use crate::transport::endpoint::Endpoint;
+use crate::transport::request::RequestParts;
 
 #[derive(Clone)]
 pub struct AccountClient {
@@ -19,11 +20,14 @@ impl AccountClient {
     pub async fn get(&self) -> Result<Account, Error> {
         self.inner
             .http
-            .get_json(
+            .send_json(
                 &self.inner.base_url,
-                Endpoint::account_get(),
+                &Endpoint::account_get(),
                 &self.inner.auth,
-                vec![],
+                RequestParts {
+                    query: Vec::new(),
+                    json_body: None,
+                },
             )
             .await
     }

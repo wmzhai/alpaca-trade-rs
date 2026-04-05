@@ -43,15 +43,21 @@ fn public_api_exposes_account_calendar_and_clock_types_and_accessors() {
 
 #[test]
 fn public_api_exposes_builder_retry_and_observer_surface() {
+    #[derive(Debug, Default)]
+    struct TestObserver;
+
+    impl alpaca_trade::Observer for TestObserver {}
+
     let client = Client::builder()
         .api_key(API_KEY_SENTINEL)
         .secret_key(SECRET_KEY_SENTINEL)
-        .observer(NoopObserver)
+        .observer(TestObserver)
         .retry_policy(RetryPolicy::trading_safe())
         .build()
         .expect("client should build");
 
     let _ = client.account();
+    let _ = NoopObserver;
 }
 
 #[test]
