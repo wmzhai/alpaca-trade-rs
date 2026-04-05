@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.4 - 2026-04-05
+
+- Add `AssetsClient::get()` for the official `GET /v2/assets/{symbol_or_asset_id}` path without local symbol, UUID, or CUSIP guessing.
+- Expand local `assets_transport` coverage to include `list`, `get`, malformed JSON, `429`, `5xx`, and invalid path-segment guardrails.
+- Keep Phase 5 transport behavior on the existing enriched GET-only retry semantics from the shared foundation.
+
 ## 0.4.3 - 2026-04-05
 
 - Implement the `Asset` mirror model for the official `assets` resource, including optional `cusip`, margin requirement, and `attributes` fields.

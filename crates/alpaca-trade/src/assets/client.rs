@@ -28,6 +28,20 @@ impl AssetsClient {
             )
             .await
     }
+
+    pub async fn get(&self, symbol_or_asset_id: &str) -> Result<Asset, Error> {
+        let endpoint = Endpoint::asset_get(symbol_or_asset_id)?;
+
+        self.inner
+            .http
+            .send_json(
+                &self.inner.base_url,
+                &endpoint,
+                &self.inner.auth,
+                RequestParts::with_query(Vec::new()),
+            )
+            .await
+    }
 }
 
 impl Debug for AssetsClient {
