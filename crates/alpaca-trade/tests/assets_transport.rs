@@ -6,11 +6,11 @@ mod http_server;
 use http_server::TestServer;
 
 fn assets_json() -> &'static str {
-    r#"[{"id":"904837e3-3b76-47ec-b432-046db621571b","class":"us_equity","exchange":"NASDAQ","symbol":"AAPL","name":"Apple Inc. Common Stock","status":"active","tradable":true,"marginable":true,"shortable":true,"easy_to_borrow":true,"fractionable":true}]"#
+    r#"[{"id":"b0b6dd9d-8b9b-48a9-ba46-b9d54906e415","class":"us_equity","exchange":"NASDAQ","symbol":"AAPL","name":"Apple Inc. Common Stock","status":"active","tradable":true,"marginable":true,"shortable":true,"easy_to_borrow":true,"fractionable":true,"attributes":["has_options"]}]"#
 }
 
 fn asset_json() -> &'static str {
-    r#"{"id":"904837e3-3b76-47ec-b432-046db621571b","class":"us_equity","exchange":"NASDAQ","symbol":"AAPL","name":"Apple Inc. Common Stock","status":"active","tradable":true,"marginable":true,"shortable":true,"easy_to_borrow":true,"fractionable":true}"#
+    r#"{"id":"b0b6dd9d-8b9b-48a9-ba46-b9d54906e415","class":"us_equity","exchange":"NASDAQ","symbol":"AAPL","name":"Apple Inc. Common Stock","status":"active","tradable":true,"marginable":true,"shortable":true,"easy_to_borrow":true,"fractionable":true,"attributes":["has_options"]}"#
 }
 
 fn list_request() -> ListRequest {
@@ -39,7 +39,7 @@ async fn assets_list_hits_official_path_query_and_sends_auth_headers() {
         .assets()
         .list(list_request())
         .await
-        .expect("assets request should succeed");
+        .expect("assets list request should succeed");
 
     assert_eq!(assets.len(), 1);
     assert_eq!(assets[0].symbol, "AAPL");
@@ -77,7 +77,7 @@ async fn asset_get_hits_official_path_and_sends_auth_headers() {
         .assets()
         .get("AAPL")
         .await
-        .expect("asset request should succeed");
+        .expect("asset get request should succeed");
 
     assert_eq!(asset.symbol, "AAPL");
 
@@ -216,7 +216,9 @@ async fn assets_list_maps_malformed_json_to_deserialize() {
 
 #[tokio::test]
 async fn asset_get_rejects_invalid_path_segment_before_send() {
-    let server = TestServer::spawn(vec![]);
+    let server = TestServer::spawn(vec![
+        "HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}".to_owned(),
+    ]);
 
     let error = Client::builder()
         .api_key("key")
@@ -227,7 +229,7 @@ async fn asset_get_rejects_invalid_path_segment_before_send() {
         .assets()
         .get("AAPL/US")
         .await
-        .expect_err("invalid path segment must fail");
+        .expect_err("reserved path characters must fail before send");
 
     match error {
         Error::InvalidRequest(message) => {
@@ -237,5 +239,5 @@ async fn asset_get_rejects_invalid_path_segment_before_send() {
     }
 
     let requests = server.into_requests();
-    assert!(requests.is_empty(), "invalid path must fail before send");
+    assert!(requests.is_empty(), "invalid paths should not send any request");
 }
