@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 - 2026-04-05
+
+- Complete Phase 4 by shipping the shared Trading HTTP REST foundation before `assets`.
+- Add multi-method transport support, enriched error metadata, Trading-safe retry defaults, builder ergonomics, and shared request primitives.
+- Re-run the existing live-first `account`, `clock`, and `calendar` coverage on top of the new transport foundation.
+- Realign the project docs and coverage manifest so `assets` becomes Phase 5 and later phases follow the new order.
+
 ## 0.3.6 - 2026-04-05
 
 - Realign the public docs and local design docs around the Phase 4 `foundation` milestone and the new Phase 5 `assets` follow-up.
