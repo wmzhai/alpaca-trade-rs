@@ -42,10 +42,7 @@ fn asset_model_deserializes_official_list_shape() {
     assert_eq!(assets[0].maintenance_margin_requirement, Some(30.0));
     assert_eq!(assets[0].margin_requirement_long.as_deref(), Some("30"));
     assert_eq!(assets[0].margin_requirement_short.as_deref(), Some("100"));
-    let expected_attributes = vec![
-        "fractional_eh_enabled".to_owned(),
-        "has_options".to_owned(),
-    ];
+    let expected_attributes = vec!["fractional_eh_enabled".to_owned(), "has_options".to_owned()];
     assert_eq!(
         assets[0].attributes.as_ref().map(Vec::as_slice),
         Some(expected_attributes.as_slice())

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0 - 2026-04-05
+
+- Finish Phase 5 by shipping the live-first `assets` Trading HTTP REST resource family.
+- Preserve the official `status`, `asset_class`, `exchange`, and `attributes` list query words together with the official `symbol_or_asset_id` single-asset path behavior.
+- Keep `assets` outside `alpaca-trade-mock` and validate it through the official Alpaca Paper smoke path.
+- No dedicated benchmark was added because Phase 5 only introduces straightforward read-only `GET` endpoints without a new pagination or transport primitive.
+
 ## 0.4.5 - 2026-04-05
 
 - Add the credential-gated `assets_live` Alpaca Paper smoke test for both `list` and `get`.
