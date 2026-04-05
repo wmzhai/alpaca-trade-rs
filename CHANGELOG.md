@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2 - 2026-04-04
+
+- Reorder the planned Trading HTTP REST phases to prioritize lower-complexity read-only families before mutation-heavy trading resources.
+- Document how to start the Phase 1 `alpaca-trade-mock` server and list the currently available Phase 1 routes.
+- Document the current Phase 1 test flow, including the workspace test command and the self-starting mock-backed black-box tests.
+
 ## 0.1.1 - 2026-04-04
 
 - Add `tools/api-coverage/trading-api.json` to track major non-crypto Alpaca Trading HTTP REST resource families and operation status.

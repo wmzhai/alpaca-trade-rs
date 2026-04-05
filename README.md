@@ -35,3 +35,35 @@ println!("{}", account.status);
 # Ok(())
 # }
 ```
+
+## Phase 1 Mock Server
+
+Start the local mock server with:
+
+```bash
+cargo run -p alpaca-trade-mock -- --bind 127.0.0.1:16803
+```
+
+Current Phase 1 routes:
+
+- `GET /health`
+- `GET /v2/account`
+- `POST /__admin/reset`
+- `POST /__admin/faults`
+- `DELETE /__admin/faults`
+
+## Phase 1 Testing
+
+Run the full automated test suite with:
+
+```bash
+cargo test --workspace
+```
+
+If you only want the mock route contract tests, run:
+
+```bash
+cargo test -p alpaca-trade-mock --test app_routes -- --nocapture
+```
+
+The current black-box client tests start their own mock server via `spawn_test_server()`, so they do not require a manually started mock process.

@@ -129,8 +129,38 @@
       ]
     },
     {
-      "family": "account_configurations",
+      "family": "options_contracts",
       "phase": 5,
+      "public_entry": "options_contracts()",
+      "status": "planned",
+      "operations": [
+        {
+          "operation": "list_option_contracts",
+          "method": "GET",
+          "path": "/v2/options/contracts",
+          "reference": "https://docs.alpaca.markets/reference/get-options-contracts",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Options contract discovery endpoint."
+        },
+        {
+          "operation": "get_option_contract_by_symbol_or_id",
+          "method": "GET",
+          "path": "/v2/options/contracts/{symbol_or_id}",
+          "reference": "https://docs.alpaca.markets/reference/get-option-contract-symbol_or_id",
+          "mirror_status": "not_started",
+          "convenience_status": "not_started",
+          "mock_status": "not_started",
+          "live_test_status": "not_started",
+          "notes": "Single contract lookup endpoint."
+        }
+      ]
+    },
+    {
+      "family": "account_configurations",
+      "phase": 6,
       "public_entry": "account_configurations()",
       "status": "planned",
       "operations": [
@@ -160,7 +190,7 @@
     },
     {
       "family": "watchlists",
-      "phase": 6,
+      "phase": 7,
       "public_entry": "watchlists()",
       "status": "planned",
       "operations": [
@@ -289,7 +319,7 @@
     },
     {
       "family": "orders",
-      "phase": 7,
+      "phase": 8,
       "public_entry": "orders()",
       "status": "planned",
       "operations": [
@@ -374,7 +404,7 @@
     },
     {
       "family": "positions",
-      "phase": 8,
+      "phase": 9,
       "public_entry": "positions()",
       "status": "planned",
       "operations": [
@@ -448,7 +478,7 @@
     },
     {
       "family": "activities",
-      "phase": 9,
+      "phase": 10,
       "public_entry": "activities()",
       "status": "planned",
       "operations": [
@@ -478,7 +508,7 @@
     },
     {
       "family": "portfolio_history",
-      "phase": 10,
+      "phase": 11,
       "public_entry": "portfolio_history()",
       "status": "planned",
       "operations": [
@@ -492,36 +522,6 @@
           "mock_status": "not_started",
           "live_test_status": "not_started",
           "notes": "Historical account equity and P/L endpoint."
-        }
-      ]
-    },
-    {
-      "family": "options_contracts",
-      "phase": 11,
-      "public_entry": "options_contracts()",
-      "status": "planned",
-      "operations": [
-        {
-          "operation": "list_option_contracts",
-          "method": "GET",
-          "path": "/v2/options/contracts",
-          "reference": "https://docs.alpaca.markets/reference/get-options-contracts",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Options contract discovery endpoint."
-        },
-        {
-          "operation": "get_option_contract_by_symbol_or_id",
-          "method": "GET",
-          "path": "/v2/options/contracts/{symbol_or_id}",
-          "reference": "https://docs.alpaca.markets/reference/get-option-contract-symbol_or_id",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Single contract lookup endpoint."
         }
       ]
     }
