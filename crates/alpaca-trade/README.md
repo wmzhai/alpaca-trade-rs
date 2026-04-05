@@ -36,7 +36,7 @@ let assets = client
         attributes: Some(vec!["has_options".into()]),
     })
     .await?;
-println!("{} {}", assets[0].symbol, assets[0].name);
+println!("{} {}", assets[0].symbol, assets[0].status);
 # Ok(())
 # }
 ```
