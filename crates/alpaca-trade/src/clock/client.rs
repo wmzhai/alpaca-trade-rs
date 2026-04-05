@@ -21,7 +21,7 @@ impl ClockClient {
             .http
             .get_json(
                 &self._inner.base_url,
-                Endpoint::Clock,
+                Endpoint::clock_get(),
                 &self._inner.auth,
                 vec![],
             )

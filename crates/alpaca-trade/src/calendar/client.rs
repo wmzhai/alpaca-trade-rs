@@ -21,7 +21,7 @@ impl CalendarClient {
             .http
             .get_json(
                 &self.inner.base_url,
-                Endpoint::Calendar,
+                Endpoint::calendar_list(),
                 &self.inner.auth,
                 request.to_query(),
             )

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2 - 2026-04-05
+
+- Add shared request guardrails for trimmed path validation, ordered query writing, CSV query encoding, and an initial pagination `collect_all()` landing point.
+- Replace the static endpoint enum with metadata-backed endpoints that carry stable operation names, HTTP methods, auth requirements, and dynamic path support for asset lookups.
+- Introduce `InvalidRequest` errors so request-shaping failures surface before any network call is attempted.
+
 ## 0.3.1 - 2026-04-05
 
 - Redact the full public trading-client `Debug` surface, including `Client`, `ClientBuilder`, `account()`, `clock()`, `calendar()`, and shared auth state, so credentials do not appear in public debug strings.

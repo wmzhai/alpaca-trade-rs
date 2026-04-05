@@ -21,7 +21,7 @@ impl AccountClient {
             .http
             .get_json(
                 &self.inner.base_url,
-                Endpoint::Account,
+                Endpoint::account_get(),
                 &self.inner.auth,
                 vec![],
             )

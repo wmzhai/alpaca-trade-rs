@@ -4,6 +4,7 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     InvalidConfiguration(String),
+    InvalidRequest(String),
     MissingCredentials,
     Transport(String),
     Timeout(String),
@@ -50,6 +51,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidConfiguration(message) => write!(f, "invalid configuration: {message}"),
+            Self::InvalidRequest(message) => write!(f, "invalid request: {message}"),
             Self::MissingCredentials => write!(f, "missing credentials"),
             Self::Transport(message) => write!(f, "transport error: {message}"),
             Self::Timeout(message) => write!(f, "request timed out: {message}"),
