@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3 - 2026-04-04
+
+- Change the default `alpaca-trade-mock` bind address to `127.0.0.1:9817`.
+- Simplify the public Phase 1 startup instructions to use `cargo run -p alpaca-trade-mock` by default.
+- Keep the `--bind` override documented for custom local addresses.
+
 ## 0.1.2 - 2026-04-04
 
 - Reorder the planned Trading HTTP REST phases to prioritize lower-complexity read-only families before mutation-heavy trading resources.

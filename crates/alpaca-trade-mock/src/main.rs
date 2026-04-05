@@ -1,12 +1,19 @@
 fn print_help() {
     println!(
-        "alpaca-trade-mock\n\nUSAGE:\n    alpaca-trade-mock [--bind <ADDR>]\n\nOPTIONS:\n    -h, --help    Print help information\n        --bind    Bind address (default: 127.0.0.1:16803)"
+        "alpaca-trade-mock
+
+USAGE:
+    alpaca-trade-mock [--bind <ADDR>]
+
+OPTIONS:
+    -h, --help    Print help information
+        --bind    Bind address (default: 127.0.0.1:9817)"
     );
 }
 
 #[tokio::main]
 async fn main() {
-    let mut bind = String::from("127.0.0.1:16803");
+    let mut bind = String::from("127.0.0.1:9817");
     let mut args = std::env::args().skip(1);
 
     while let Some(arg) = args.next() {

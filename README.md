@@ -38,10 +38,18 @@ println!("{}", account.status);
 
 ## Phase 1 Mock Server
 
-Start the local mock server with:
+Start the local mock server with the default bind address:
 
 ```bash
-cargo run -p alpaca-trade-mock -- --bind 127.0.0.1:16803
+cargo run -p alpaca-trade-mock
+```
+
+The current default bind address is `127.0.0.1:9817`.
+
+If you need a custom address, run:
+
+```bash
+cargo run -p alpaca-trade-mock -- --bind 127.0.0.1:9901
 ```
 
 Current Phase 1 routes:
