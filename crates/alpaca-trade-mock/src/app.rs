@@ -1,7 +1,7 @@
 use axum::Router;
 
-use crate::{routes::build_router, state::AppState};
+use crate::routes::build_router;
 
 pub fn build_app() -> Router {
-    build_router(AppState::new())
+    build_router()
 }

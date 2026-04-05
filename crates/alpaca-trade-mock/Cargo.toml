@@ -14,14 +14,10 @@ exclude = ["/.agents/**", "/.github/**", "/AGENTS.md", "/docs/superpowers/**", "
 path = "src/lib.rs"
 
 [dependencies]
-alpaca-trade = { path = "../alpaca-trade", version = "0.1.3" }
 axum.workspace = true
-parking_lot.workspace = true
-serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
 tokio.workspace = true
 tower.workspace = true

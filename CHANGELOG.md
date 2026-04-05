@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5 - 2026-04-05
+
+- Remove `/v2/account` and all Phase 1 business state from `alpaca-trade-mock`.
+- Keep `alpaca-trade-mock` runnable as a minimal internal scaffold with `/health`, `build_app()`, and `spawn_test_server()`.
+- Drop the no-longer-needed account/admin/state dependencies from the mock crate.
+
 ## 0.1.4 - 2026-04-05
 
 - Switch Phase 1 `account` happy-path verification from mock-backed tests to live-first Alpaca Paper coverage.
