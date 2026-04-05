@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 - 2026-04-05
+
+- Redact `Debug` output for the root `Client`, `account()` resource client, and shared auth state so API credentials no longer appear in public debug strings.
+- Keep the existing non-exhaustive debug redaction behavior for `clock()` and `calendar()` intact.
+- Extend public regression coverage to assert debug redaction for both the root client and `account()` resource client.
+
 ## 0.3.0 - 2026-04-05
 
 - Finish Phase 3 by shipping the live-first `calendar` Trading HTTP REST resource.

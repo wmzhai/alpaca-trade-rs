@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::time::Duration;
+use std::{fmt, fmt::Debug};
 
 use crate::account::AccountClient;
 use crate::auth::Auth;
@@ -12,12 +13,12 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 const PAPER_BASE_URL: &str = "https://paper-api.alpaca.markets";
 const LIVE_BASE_URL: &str = "https://api.alpaca.markets";
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Client {
     inner: Arc<Inner>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct Inner {
     pub(crate) auth: Auth,
     pub(crate) base_url: String,
@@ -68,6 +69,14 @@ impl Client {
 
     pub fn clock(&self) -> ClockClient {
         ClockClient::new(Arc::clone(&self.inner))
+    }
+}
+
+impl Debug for Client {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Client")
+            .field("base_url", &self.inner.base_url)
+            .finish_non_exhaustive()
     }
 }
 

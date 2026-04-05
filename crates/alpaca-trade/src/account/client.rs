@@ -1,11 +1,12 @@
 use std::sync::Arc;
+use std::{fmt, fmt::Debug};
 
 use crate::account::Account;
 use crate::client::Inner;
 use crate::error::Error;
 use crate::transport::endpoint::Endpoint;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AccountClient {
     inner: Arc<Inner>,
 }
@@ -25,5 +26,12 @@ impl AccountClient {
                 vec![],
             )
             .await
+    }
+}
+
+impl Debug for AccountClient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let _ = &self.inner;
+        f.debug_struct("AccountClient").finish_non_exhaustive()
     }
 }

@@ -1,3 +1,5 @@
+use std::{fmt, fmt::Debug};
+
 use reqwest::header::{HeaderName, HeaderValue};
 
 use crate::error::Error;
@@ -5,7 +7,7 @@ use crate::error::Error;
 const APCA_API_KEY_ID: HeaderName = HeaderName::from_static("apca-api-key-id");
 const APCA_API_SECRET_KEY: HeaderName = HeaderName::from_static("apca-api-secret-key");
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Auth {
     api_key: String,
     secret_key: String,
@@ -53,5 +55,11 @@ impl Auth {
         Ok(request
             .header(APCA_API_KEY_ID.clone(), api_key)
             .header(APCA_API_SECRET_KEY.clone(), secret_key))
+    }
+}
+
+impl Debug for Auth {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Auth").finish_non_exhaustive()
     }
 }
