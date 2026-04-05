@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 - 2026-04-05
+
+- Switch Phase 1 `account` happy-path verification from mock-backed tests to live-first Alpaca Paper coverage.
+- Load live test credentials from a local root `.env` via `ALPACA_TRADE_API_KEY` and `ALPACA_TRADE_SECRET_KEY`.
+- Remove the old mock-backed `account` black-box tests now that local transport coverage and live happy-path coverage are split cleanly.
+
 ## 0.1.3 - 2026-04-04
 
 - Change the default `alpaca-trade-mock` bind address to `127.0.0.1:9817`.
