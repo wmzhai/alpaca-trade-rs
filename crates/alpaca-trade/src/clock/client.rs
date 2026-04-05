@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::{fmt, fmt::Debug};
 
-use crate::clock::Clock;
 use crate::client::Inner;
+use crate::clock::Clock;
 use crate::error::Error;
 use crate::transport::endpoint::Endpoint;
 

@@ -1,7 +1,7 @@
 pub mod account;
-pub mod clock;
 mod auth;
 mod client;
+pub mod clock;
 mod common;
 mod error;
 mod transport;

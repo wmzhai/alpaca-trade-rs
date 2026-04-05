@@ -24,7 +24,10 @@ fn clock_client_debug_does_not_expose_credentials() {
 
     let debug = format!("{:?}", client.clock());
 
-    assert!(!debug.contains("key"), "debug output leaked api key: {debug}");
+    assert!(
+        !debug.contains("key"),
+        "debug output leaked api key: {debug}"
+    );
     assert!(
         !debug.contains("secret"),
         "debug output leaked secret key: {debug}"

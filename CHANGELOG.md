@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 - 2026-04-05
+
+- Finish Phase 2 by shipping the live-first `clock` Trading HTTP REST resource.
+- Keep `clock` outside `alpaca-trade-mock` and validate it through the official Alpaca Paper smoke path.
+- Roll the workspace forward from the Phase 1 patch series to the Phase 2 MINOR release.
+
 ## 0.1.10 - 2026-04-05
 
 - Add the credential-gated `clock_live` Alpaca Paper smoke test for Phase 2.

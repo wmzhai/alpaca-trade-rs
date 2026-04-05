@@ -103,7 +103,10 @@ async fn clock_get_hits_official_path_and_sends_auth_headers() {
 
     let request = server.into_request();
     assert_eq!(request.request_line, "GET /v2/clock HTTP/1.1");
-    assert_eq!(request.headers.get("apca-api-key-id"), Some(&"key".to_owned()));
+    assert_eq!(
+        request.headers.get("apca-api-key-id"),
+        Some(&"key".to_owned())
+    );
     assert_eq!(
         request.headers.get("apca-api-secret-key"),
         Some(&"secret".to_owned())
