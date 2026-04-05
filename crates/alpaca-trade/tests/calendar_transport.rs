@@ -1,8 +1,9 @@
 use alpaca_trade::Client;
 use alpaca_trade::calendar::ListRequest;
-mod support;
+#[path = "support/http_server.rs"]
+mod http_server;
 
-use support::TestServer;
+use http_server::TestServer;
 
 fn calendar_json() -> &'static str {
     r#"[{"close":"16:00","date":"2026-04-01","open":"09:30","session_close":"2000","session_open":"0400","settlement_date":"2026-04-02"}]"#
@@ -47,4 +48,45 @@ async fn calendar_list_hits_official_path_and_sends_auth_headers() {
         request.headers.get("apca-api-secret-key"),
         Some(&"secret".to_owned())
     );
+}
+
+#[tokio::test]
+async fn calendar_list_maps_malformed_json_to_deserialize() {
+    let server = TestServer::spawn(vec![
+        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\nx-request-id: req-calendar-json-1\r\ncontent-length: 15\r\nconnection: close\r\n\r\n{not valid json"
+            .to_owned(),
+    ]);
+
+    let error = Client::builder()
+        .api_key("key")
+        .secret_key("secret")
+        .base_url(server.base_url())
+        .build()
+        .expect("client should build")
+        .calendar()
+        .list(ListRequest {
+            start: Some("2026-04-01".to_owned()),
+            end: Some("2026-04-03".to_owned()),
+        })
+        .await
+        .expect_err("invalid json must fail");
+
+    match error {
+        alpaca_trade::Error::Deserialize { message, meta } => {
+            assert!(!message.is_empty());
+            assert_eq!(meta.endpoint, "calendar.list");
+            assert_eq!(meta.method, "GET");
+            assert_eq!(meta.status, Some(200));
+            assert_eq!(meta.request_id.as_deref(), Some("req-calendar-json-1"));
+            assert_eq!(meta.body.as_deref(), Some("{not valid json"));
+        }
+        other => panic!("expected deserialize error, got {other:?}"),
+    }
+
+    let request = server.into_single_request();
+    assert_eq!(
+        request.request_line,
+        "GET /v2/calendar?start=2026-04-01&end=2026-04-03 HTTP/1.1"
+    );
+    assert!(request.body.is_empty());
 }

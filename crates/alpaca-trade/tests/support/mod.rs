@@ -1,4 +1,6 @@
+#[allow(dead_code)]
 pub mod http_server;
+#[allow(unused_imports)]
 pub use http_server::TestServer;
 
 use std::collections::HashMap;

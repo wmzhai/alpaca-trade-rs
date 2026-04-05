@@ -51,20 +51,6 @@ impl HttpClient {
         }
     }
 
-    pub(crate) async fn get_json<T>(
-        &self,
-        base_url: &str,
-        endpoint: Endpoint,
-        auth: &Auth,
-        query: Vec<(String, String)>,
-    ) -> Result<T, Error>
-    where
-        T: DeserializeOwned,
-    {
-        self.send_json(base_url, &endpoint, auth, RequestParts::with_query(query))
-            .await
-    }
-
     pub(crate) async fn send_json<T>(
         &self,
         base_url: &str,
