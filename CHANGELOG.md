@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.8 - 2026-04-05
+
+- Add the Phase 2 `clock` public API skeleton with `Client::clock()`, `ClockClient`, and `Clock`.
+- Export the new `clock` module from `alpaca-trade` without changing the existing `account` API.
+- Keep Phase 2 scoped to the public resource skeleton before transport and live coverage land.
+
 ## 0.1.7 - 2026-04-05
 
 - Accept both the standard `APCA_*` credential names and the repo-local `ALPACA_TRADE_*` aliases for Phase 1 live account test loading.

@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use crate::account::AccountClient;
 use crate::auth::Auth;
+use crate::clock::ClockClient;
 use crate::error::Error;
 use crate::transport::http::HttpClient;
 
@@ -58,6 +59,10 @@ impl Client {
 
     pub fn account(&self) -> AccountClient {
         AccountClient::new(Arc::clone(&self.inner))
+    }
+
+    pub fn clock(&self) -> ClockClient {
+        ClockClient::new(Arc::clone(&self.inner))
     }
 }
 
