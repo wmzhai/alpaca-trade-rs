@@ -1,15 +1,20 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::process::Command;
 use std::sync::mpsc::{self, Receiver};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Duration;
 
 use alpaca_trade::{Client, Error, Observer, RequestStart, ResponseEvent, RetryPolicy};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
 const OFFICIAL_API_KEY_ENV: &str = "APCA_API_KEY_ID";
 const OFFICIAL_SECRET_KEY_ENV: &str = "APCA_API_SECRET_KEY";
+const CUSTOM_API_KEY_ENV: &str = "CUSTOM_APCA_KEY";
+const CUSTOM_SECRET_KEY_ENV: &str = "CUSTOM_APCA_SECRET";
+const SUBPROCESS_BASE_URL_ENV: &str = "ALPACA_TRADE_TEST_BASE_URL";
 
 #[derive(Debug)]
 struct CapturedRequest {
@@ -148,50 +153,35 @@ fn account_json() -> &'static str {
     r#"{"id":"acct-1","account_number":"010203ABCD","status":"ACTIVE"}"#
 }
 
-fn env_lock() -> &'static Mutex<()> {
-    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    ENV_LOCK.get_or_init(|| Mutex::new(()))
+fn all_builder_env_names() -> [&'static str; 4] {
+    [
+        OFFICIAL_API_KEY_ENV,
+        OFFICIAL_SECRET_KEY_ENV,
+        CUSTOM_API_KEY_ENV,
+        CUSTOM_SECRET_KEY_ENV,
+    ]
 }
 
-fn with_env_vars<R>(vars: &[(&str, Option<&str>)], f: impl FnOnce() -> R) -> R {
-    let _guard = env_lock().lock().expect("env lock");
-    let saved = vars
-        .iter()
-        .map(|(name, _)| ((*name).to_owned(), std::env::var(name).ok()))
-        .collect::<Vec<_>>();
+fn run_subprocess_test(test_name: &str, envs: &[(&str, &str)]) {
+    let mut command = Command::new(std::env::current_exe().expect("current test binary"));
+    command.arg(test_name).arg("--exact").arg("--nocapture");
 
-    for (name, value) in vars {
-        match value {
-            Some(value) => {
-                // Tests serialize env mutation with a process-wide lock.
-                unsafe { std::env::set_var(name, value) };
-            }
-            None => {
-                // Tests serialize env mutation with a process-wide lock.
-                unsafe { std::env::remove_var(name) };
-            }
-        }
+    for name in all_builder_env_names() {
+        command.env_remove(name);
     }
 
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
-
-    for (name, value) in saved {
-        match value {
-            Some(value) => {
-                // Restore the previous process env before releasing the lock.
-                unsafe { std::env::set_var(name, value) };
-            }
-            None => {
-                // Restore the previous process env before releasing the lock.
-                unsafe { std::env::remove_var(name) };
-            }
-        }
+    for (name, value) in envs {
+        command.env(name, value);
     }
 
-    match result {
-        Ok(result) => result,
-        Err(payload) => std::panic::resume_unwind(payload),
-    }
+    let output = command.output().expect("subprocess should run");
+
+    assert!(
+        output.status.success(),
+        "subprocess test `{test_name}` failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
 }
 
 #[test]
@@ -269,29 +259,17 @@ fn client_exposes_account_accessor() {
     let _ = client.account();
 }
 
-#[tokio::test]
-async fn builder_loads_credentials_from_official_env_names() {
+#[test]
+fn builder_loads_credentials_from_official_env_names() {
     let server = TestServer::spawn(success_response());
-    let client = with_env_vars(
+    run_subprocess_test(
+        "subprocess_builder_loads_credentials_from_official_env_names",
         &[
-            (OFFICIAL_API_KEY_ENV, Some("env-key")),
-            (OFFICIAL_SECRET_KEY_ENV, Some("env-secret")),
+            (SUBPROCESS_BASE_URL_ENV, server.base_url.as_str()),
+            (OFFICIAL_API_KEY_ENV, "env-key"),
+            (OFFICIAL_SECRET_KEY_ENV, "env-secret"),
         ],
-        || {
-            Client::builder()
-                .credentials_from_env()
-                .base_url(server.base_url.clone())
-                .build()
-                .expect("client should build from env")
-        },
     );
-
-    let account = client
-        .account()
-        .get()
-        .await
-        .expect("request with env credentials should succeed");
-    assert_eq!(account.id, "acct-1");
 
     let request = server.into_request();
     assert_eq!(
@@ -305,28 +283,36 @@ async fn builder_loads_credentials_from_official_env_names() {
 }
 
 #[tokio::test]
-async fn builder_loads_credentials_from_custom_env_names() {
-    let server = TestServer::spawn(success_response());
-    let client = with_env_vars(
-        &[
-            ("CUSTOM_APCA_KEY", Some("custom-env-key")),
-            ("CUSTOM_APCA_SECRET", Some("custom-env-secret")),
-        ],
-        || {
-            Client::builder()
-                .credentials_from_env_names("CUSTOM_APCA_KEY", "CUSTOM_APCA_SECRET")
-                .base_url(server.base_url.clone())
-                .build()
-                .expect("client should build from custom env names")
-        },
-    );
+async fn subprocess_builder_loads_credentials_from_official_env_names() {
+    let base_url = match std::env::var(SUBPROCESS_BASE_URL_ENV) {
+        Ok(base_url) => base_url,
+        Err(_) => return,
+    };
 
-    let account = client
+    let account = Client::builder()
+        .credentials_from_env()
+        .base_url(base_url)
+        .build()
+        .expect("client should build from env")
         .account()
         .get()
         .await
-        .expect("request with custom env credentials should succeed");
+        .expect("request with env credentials should succeed");
+
     assert_eq!(account.id, "acct-1");
+}
+
+#[test]
+fn builder_loads_credentials_from_custom_env_names() {
+    let server = TestServer::spawn(success_response());
+    run_subprocess_test(
+        "subprocess_builder_loads_credentials_from_custom_env_names",
+        &[
+            (SUBPROCESS_BASE_URL_ENV, server.base_url.as_str()),
+            (CUSTOM_API_KEY_ENV, "custom-env-key"),
+            (CUSTOM_SECRET_KEY_ENV, "custom-env-secret"),
+        ],
+    );
 
     let request = server.into_request();
     assert_eq!(
@@ -340,29 +326,36 @@ async fn builder_loads_credentials_from_custom_env_names() {
 }
 
 #[tokio::test]
-async fn credentials_from_env_clears_explicit_credentials() {
-    let server = TestServer::spawn(success_response());
-    let client = with_env_vars(
-        &[
-            (OFFICIAL_API_KEY_ENV, Some("env-key")),
-            (OFFICIAL_SECRET_KEY_ENV, Some("env-secret")),
-        ],
-        || {
-            Client::builder()
-                .api_key("explicit-key")
-                .secret_key("explicit-secret")
-                .credentials_from_env()
-                .base_url(server.base_url.clone())
-                .build()
-                .expect("env mode should override explicit credentials")
-        },
-    );
+async fn subprocess_builder_loads_credentials_from_custom_env_names() {
+    let base_url = match std::env::var(SUBPROCESS_BASE_URL_ENV) {
+        Ok(base_url) => base_url,
+        Err(_) => return,
+    };
 
-    client
+    let account = Client::builder()
+        .credentials_from_env_names(CUSTOM_API_KEY_ENV, CUSTOM_SECRET_KEY_ENV)
+        .base_url(base_url)
+        .build()
+        .expect("client should build from custom env names")
         .account()
         .get()
         .await
-        .expect("env-backed request should succeed");
+        .expect("request with custom env credentials should succeed");
+
+    assert_eq!(account.id, "acct-1");
+}
+
+#[test]
+fn credentials_from_env_clears_explicit_credentials() {
+    let server = TestServer::spawn(success_response());
+    run_subprocess_test(
+        "subprocess_credentials_from_env_clears_explicit_credentials",
+        &[
+            (SUBPROCESS_BASE_URL_ENV, server.base_url.as_str()),
+            (OFFICIAL_API_KEY_ENV, "env-key"),
+            (OFFICIAL_SECRET_KEY_ENV, "env-secret"),
+        ],
+    );
 
     let request = server.into_request();
     assert_eq!(
@@ -376,29 +369,38 @@ async fn credentials_from_env_clears_explicit_credentials() {
 }
 
 #[tokio::test]
-async fn explicit_credentials_override_env_mode_when_set_last() {
-    let server = TestServer::spawn(success_response());
-    let client = with_env_vars(
-        &[
-            (OFFICIAL_API_KEY_ENV, Some("env-key")),
-            (OFFICIAL_SECRET_KEY_ENV, Some("env-secret")),
-        ],
-        || {
-            Client::builder()
-                .credentials_from_env()
-                .api_key("explicit-key")
-                .secret_key("explicit-secret")
-                .base_url(server.base_url.clone())
-                .build()
-                .expect("explicit credentials should override env mode")
-        },
-    );
+async fn subprocess_credentials_from_env_clears_explicit_credentials() {
+    let base_url = match std::env::var(SUBPROCESS_BASE_URL_ENV) {
+        Ok(base_url) => base_url,
+        Err(_) => return,
+    };
 
-    client
+    let account = Client::builder()
+        .api_key("explicit-key")
+        .secret_key("explicit-secret")
+        .credentials_from_env()
+        .base_url(base_url)
+        .build()
+        .expect("env mode should override explicit credentials")
         .account()
         .get()
         .await
-        .expect("request with explicit override should succeed");
+        .expect("env-backed request should succeed");
+
+    assert_eq!(account.id, "acct-1");
+}
+
+#[test]
+fn explicit_credentials_override_env_mode_when_set_last() {
+    let server = TestServer::spawn(success_response());
+    run_subprocess_test(
+        "subprocess_explicit_credentials_override_env_mode_when_set_last",
+        &[
+            (SUBPROCESS_BASE_URL_ENV, server.base_url.as_str()),
+            (OFFICIAL_API_KEY_ENV, "env-key"),
+            (OFFICIAL_SECRET_KEY_ENV, "env-secret"),
+        ],
+    );
 
     let request = server.into_request();
     assert_eq!(
@@ -409,6 +411,28 @@ async fn explicit_credentials_override_env_mode_when_set_last() {
         request.headers.get("apca-api-secret-key"),
         Some(&"explicit-secret".to_owned())
     );
+}
+
+#[tokio::test]
+async fn subprocess_explicit_credentials_override_env_mode_when_set_last() {
+    let base_url = match std::env::var(SUBPROCESS_BASE_URL_ENV) {
+        Ok(base_url) => base_url,
+        Err(_) => return,
+    };
+
+    let account = Client::builder()
+        .credentials_from_env()
+        .api_key("explicit-key")
+        .secret_key("explicit-secret")
+        .base_url(base_url)
+        .build()
+        .expect("explicit credentials should override env mode")
+        .account()
+        .get()
+        .await
+        .expect("request with explicit override should succeed");
+
+    assert_eq!(account.id, "acct-1");
 }
 
 #[tokio::test]
@@ -443,6 +467,44 @@ async fn builder_uses_injected_reqwest_client_default_headers() {
         request.headers.get("x-builder-default"),
         Some(&"from-injected-client".to_owned())
     );
+}
+
+#[test]
+fn builder_rejects_custom_reqwest_client_after_non_default_timeout() {
+    let error = Client::builder()
+        .api_key("key")
+        .secret_key("secret")
+        .timeout(Duration::from_secs(5))
+        .reqwest_client(reqwest::Client::new())
+        .build()
+        .expect_err("custom client with custom timeout must fail");
+
+    assert!(matches!(
+        error,
+        Error::InvalidConfiguration(message)
+            if message.contains("reqwest_client")
+                && message.contains("timeout")
+                && message.contains("provided reqwest::Client")
+    ));
+}
+
+#[test]
+fn builder_rejects_non_default_timeout_after_custom_reqwest_client() {
+    let error = Client::builder()
+        .api_key("key")
+        .secret_key("secret")
+        .reqwest_client(reqwest::Client::new())
+        .timeout(Duration::from_secs(5))
+        .build()
+        .expect_err("custom timeout after custom client must fail");
+
+    assert!(matches!(
+        error,
+        Error::InvalidConfiguration(message)
+            if message.contains("reqwest_client")
+                && message.contains("timeout")
+                && message.contains("provided reqwest::Client")
+    ));
 }
 
 #[tokio::test]
@@ -482,6 +544,42 @@ async fn builder_observer_receives_success_lifecycle_callbacks() {
 
     let request = server.into_request();
     assert_eq!(request.request_line, "GET /v2/account HTTP/1.1");
+}
+
+#[tokio::test]
+async fn builder_observer_redacts_userinfo_from_request_start_url() {
+    let server = TestServer::spawn(success_response());
+    let observer = RecordingObserver::default();
+    let secret_base_url = format!(
+        "http://user:secret@{}",
+        server.base_url.trim_start_matches("http://")
+    );
+
+    let account = Client::builder()
+        .api_key("key")
+        .secret_key("secret")
+        .observer(observer.clone())
+        .base_url(secret_base_url)
+        .build()
+        .expect("client should build")
+        .account()
+        .get()
+        .await
+        .expect("request should succeed");
+
+    assert_eq!(account.id, "acct-1");
+
+    let events = observer.snapshot();
+    assert_eq!(events.len(), 2);
+    let ObservedEvent::Start { url, .. } = &events[0] else {
+        panic!("first event should be request start: {events:?}");
+    };
+    assert_eq!(url, &format!("{}/v2/account", server.base_url));
+    assert!(!url.contains("secret"), "observer url leaked secret: {url}");
+    assert!(
+        !url.contains("user@"),
+        "observer url leaked username: {url}"
+    );
 }
 
 #[tokio::test]

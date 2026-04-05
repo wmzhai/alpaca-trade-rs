@@ -48,6 +48,8 @@ pub struct ClientBuilder {
     reqwest_client: Option<reqwest::Client>,
     observer: Arc<dyn Observer>,
     retry_policy: RetryPolicy,
+    observer_configured: bool,
+    retry_policy_configured: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -68,6 +70,8 @@ impl Default for ClientBuilder {
             reqwest_client: None,
             observer: Arc::new(NoopObserver),
             retry_policy: RetryPolicy::trading_safe(),
+            observer_configured: false,
+            retry_policy_configured: false,
         }
     }
 }
@@ -108,6 +112,8 @@ impl Debug for ClientBuilder {
         let _ = &self.reqwest_client;
         let _ = &self.observer;
         let _ = &self.retry_policy;
+        let _ = &self.observer_configured;
+        let _ = &self.retry_policy_configured;
         f.debug_struct("ClientBuilder").finish_non_exhaustive()
     }
 }
@@ -179,11 +185,13 @@ impl ClientBuilder {
         O: Observer,
     {
         self.observer = Arc::new(observer);
+        self.observer_configured = true;
         self
     }
 
     pub fn retry_policy(mut self, retry_policy: RetryPolicy) -> Self {
         self.retry_policy = retry_policy;
+        self.retry_policy_configured = true;
         self
     }
 
@@ -208,14 +216,27 @@ impl ClientBuilder {
         });
         reqwest::Url::parse(&base_url)
             .map_err(|error| Error::InvalidConfiguration(format!("invalid base_url: {error}")))?;
-        let reqwest_client = match self.reqwest_client {
-            Some(client) => client,
-            None => reqwest::Client::builder()
-                .timeout(self.timeout)
-                .build()
-                .map_err(Error::from_reqwest)?,
+        let http = match self.reqwest_client {
+            Some(client) => {
+                if self.timeout != DEFAULT_TIMEOUT {
+                    return Err(Error::InvalidConfiguration(
+                        "reqwest_client() cannot be combined with a non-default timeout(); configure the timeout on the provided reqwest::Client".to_owned(),
+                    ));
+                }
+
+                HttpClient::with_client(client, self.retry_policy, self.observer)
+            }
+            None if !self.observer_configured && !self.retry_policy_configured => {
+                HttpClient::new(self.timeout)?
+            }
+            None => {
+                let reqwest_client = reqwest::Client::builder()
+                    .timeout(self.timeout)
+                    .build()
+                    .map_err(Error::from_reqwest)?;
+                HttpClient::with_client(reqwest_client, self.retry_policy, self.observer)
+            }
         };
-        let http = HttpClient::with_client(reqwest_client, self.retry_policy, self.observer);
 
         Ok(Client {
             inner: Arc::new(Inner {

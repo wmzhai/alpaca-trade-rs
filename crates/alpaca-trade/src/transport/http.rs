@@ -26,7 +26,6 @@ pub(crate) struct HttpClient {
 }
 
 impl HttpClient {
-    #[allow(dead_code)]
     pub(crate) fn new(timeout: Duration) -> Result<Self, Error> {
         let client = reqwest::Client::builder()
             .timeout(timeout)
@@ -134,6 +133,7 @@ impl HttpClient {
         request: RequestParts,
     ) -> Result<ResponseParts, Error> {
         let url = format!("{}{}", base_url.trim_end_matches('/'), endpoint.path());
+        let observer_url = sanitized_observer_url(&url);
         let endpoint_name = endpoint.name().to_owned();
         let method = endpoint.method();
         let method_name = method.as_str().to_owned();
@@ -143,7 +143,7 @@ impl HttpClient {
             self.observer.on_request_start(&RequestStart {
                 endpoint: endpoint_name.clone(),
                 method: method_name.clone(),
-                url: url.clone(),
+                url: observer_url.clone(),
             });
 
             let request_builder =
@@ -306,6 +306,17 @@ struct ResponseParts {
     request_id: Option<String>,
     retry_after: Option<String>,
     body: String,
+}
+
+fn sanitized_observer_url(url: &str) -> String {
+    let Ok(mut parsed) = reqwest::Url::parse(url) else {
+        return url.to_owned();
+    };
+
+    let _ = parsed.set_username("");
+    let _ = parsed.set_password(None);
+
+    parsed.to_string()
 }
 
 fn bounded_body_snippet(body: &str) -> Option<String> {
