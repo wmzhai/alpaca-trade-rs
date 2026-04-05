@@ -38,7 +38,7 @@ fn public_api_exposes_account_assets_calendar_and_clock_types_and_accessors() {
     let _ = client.calendar();
     let _ = client.clock();
     let _ = Account::default();
-    let _ = Asset::default();
+    let _: Option<Asset> = None;
     let _ = AssetsListRequest::default();
     let _ = Calendar::default();
     let _ = CalendarListRequest::default();
