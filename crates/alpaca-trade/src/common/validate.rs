@@ -25,7 +25,10 @@ fn contains_encoded_reserved_path_characters(value: &str) -> bool {
     bytes.windows(3).any(|window| {
         window[0] == b'%'
             && matches!(
-                (window[1].to_ascii_lowercase(), window[2].to_ascii_lowercase()),
+                (
+                    window[1].to_ascii_lowercase(),
+                    window[2].to_ascii_lowercase()
+                ),
                 (b'2', b'f') | (b'3', b'f') | (b'2', b'3')
             )
     })

@@ -241,5 +241,8 @@ async fn asset_get_rejects_invalid_path_segment_before_send() {
     }
 
     let requests = server.into_requests();
-    assert!(requests.is_empty(), "invalid paths should not send any request");
+    assert!(
+        requests.is_empty(),
+        "invalid paths should not send any request"
+    );
 }
