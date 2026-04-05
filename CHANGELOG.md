@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 - 2026-04-05
+
+- Implement `GET /v2/calendar` through `CalendarClient::list()` using the shared authenticated HTTP transport.
+- Add local model coverage for the official `calendar` array response and required fields.
+- Add local transport coverage for the `/v2/calendar` path, auth headers, and ordered `start` / `end` query words.
+
 ## 0.2.1 - 2026-04-05
 
 - Add the Phase 3 `calendar` public API skeleton with `Client::calendar()`, `CalendarClient`, `Calendar`, and `ListRequest`.
