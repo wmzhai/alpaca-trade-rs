@@ -33,7 +33,6 @@ enum Environment {
     Live,
 }
 
-#[derive(Debug)]
 pub struct ClientBuilder {
     api_key: Option<String>,
     secret_key: Option<String>,
@@ -74,9 +73,19 @@ impl Client {
 
 impl Debug for Client {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Client")
-            .field("base_url", &self.inner.base_url)
-            .finish_non_exhaustive()
+        let _ = &self.inner;
+        f.debug_struct("Client").finish_non_exhaustive()
+    }
+}
+
+impl Debug for ClientBuilder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let _ = &self.api_key;
+        let _ = &self.secret_key;
+        let _ = &self.environment;
+        let _ = &self.base_url;
+        let _ = &self.timeout;
+        f.debug_struct("ClientBuilder").finish_non_exhaustive()
     }
 }
 

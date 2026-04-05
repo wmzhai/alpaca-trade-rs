@@ -2,9 +2,10 @@
 
 ## 0.3.1 - 2026-04-05
 
-- Redact `Debug` output for the root `Client`, `account()` resource client, and shared auth state so API credentials no longer appear in public debug strings.
+- Redact the full public trading-client `Debug` surface, including `Client`, `ClientBuilder`, `account()`, `clock()`, `calendar()`, and shared auth state, so credentials do not appear in public debug strings.
+- Stop exposing raw `base_url` values in `Client` debug output, which prevents leaks from custom URLs that embed secrets.
 - Keep the existing non-exhaustive debug redaction behavior for `clock()` and `calendar()` intact.
-- Extend public regression coverage to assert debug redaction for both the root client and `account()` resource client.
+- Extend public regression coverage to assert debug redaction for the builder, root client, custom base URLs, and `account()` resource client.
 
 ## 0.3.0 - 2026-04-05
 
