@@ -55,8 +55,8 @@
           "mirror_status": "implemented",
           "convenience_status": "implemented",
           "mock_status": "not_planned",
-          "live_test_status": "implemented",
-          "notes": "Phase 1 shipped in v0.1.0; normal-path verification was realigned to live-first in v0.1.4, with credential-gated Alpaca Paper coverage in automated runs."
+          "live_test_status": "credential_gated",
+          "notes": "Phase 1 shipped in v0.1.0; normal-path verification was realigned to live-first in v0.1.4. Automated runs exercise Alpaca Paper only when credentials are present, and the live helper accepts both APCA_* and ALPACA_TRADE_* naming conventions."
         }
       ]
     },

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.7 - 2026-04-05
+
+- Accept both the standard `APCA_*` credential names and the repo-local `ALPACA_TRADE_*` aliases for Phase 1 live account test loading.
+- Switch public examples back to the official Alpaca environment variable names while keeping the local live-test helper compatible with both naming conventions.
+- Clarify that Phase 1 live account verification is credential-gated Alpaca Paper smoke coverage, so green local runs can still skip the real paper request when credentials are absent.
+
 ## 0.1.6 - 2026-04-05
 
 - Realign public Phase 1 documentation around live-first, credential-gated `account` testing against Alpaca Paper.

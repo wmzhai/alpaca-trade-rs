@@ -6,7 +6,7 @@ use alpaca_trade::Client;
 async fn account_live_reads_paper_account() {
     let Some(credentials) = support::trade_credentials() else {
         eprintln!(
-            "skipping live account test: missing ALPACA_TRADE_API_KEY or ALPACA_TRADE_SECRET_KEY"
+            "skipping live account test: missing ALPACA_TRADE_API_KEY / ALPACA_TRADE_SECRET_KEY or APCA_API_KEY_ID / APCA_API_SECRET_KEY"
         );
         return;
     };

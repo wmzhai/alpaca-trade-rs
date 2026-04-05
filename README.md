@@ -10,7 +10,7 @@
 - Published crate: `alpaca-trade`
 - Internal workspace tool: `alpaca-trade-mock`
 - Default client environment: Alpaca Paper Trading
-- Phase 1 happy-path testing: live-first, with credential-gated Alpaca Paper coverage
+- Phase 1 happy-path testing: live-first, with credential-gated Alpaca Paper smoke coverage when credentials are available
 
 ## Workspace
 
@@ -25,8 +25,8 @@ use alpaca_trade::Client;
 
 # async fn demo() -> Result<(), alpaca_trade::Error> {
 let client = Client::builder()
-    .api_key(std::env::var("ALPACA_TRADE_API_KEY").expect("ALPACA_TRADE_API_KEY is required"))
-    .secret_key(std::env::var("ALPACA_TRADE_SECRET_KEY").expect("ALPACA_TRADE_SECRET_KEY is required"))
+    .api_key(std::env::var("APCA_API_KEY_ID").expect("APCA_API_KEY_ID is required"))
+    .secret_key(std::env::var("APCA_API_SECRET_KEY").expect("APCA_API_SECRET_KEY is required"))
     .build()?;
 
 let account = client.account().get().await?;
@@ -37,11 +37,15 @@ println!("{}", account.status);
 
 ## Phase 1 Testing
 
-Create a local root `.env` file with `ALPACA_TRADE_API_KEY=...` and `ALPACA_TRADE_SECRET_KEY=...`.
+Create a local root `.env` file with either:
+
+- `APCA_API_KEY_ID=...` and `APCA_API_SECRET_KEY=...`
+- `ALPACA_TRADE_API_KEY=...` and `ALPACA_TRADE_SECRET_KEY=...`
 
 Run the full automated test suite with `cargo test --workspace -- --nocapture`.
 
 Notes:
 - `account_model` and `account_transport` stay local/offline.
-- `account_live` is the credential-gated live coverage path against the official Alpaca Paper API.
+- `account_live` is the credential-gated live smoke path against the official Alpaca Paper API.
+- The live test helper accepts both the standard `APCA_*` names and the repo-local `ALPACA_TRADE_*` aliases.
 - If `.env` credentials are missing, the live test prints a skip message and exits successfully, so a green local run may not include a real paper request.

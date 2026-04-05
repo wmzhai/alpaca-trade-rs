@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 
 static DOTENV: OnceLock<HashMap<String, String>> = OnceLock::new();
+const API_KEY_CANDIDATES: [&str; 2] = ["ALPACA_TRADE_API_KEY", "APCA_API_KEY_ID"];
+const SECRET_KEY_CANDIDATES: [&str; 2] = ["ALPACA_TRADE_SECRET_KEY", "APCA_API_SECRET_KEY"];
 
 #[derive(Debug, Clone)]
 pub struct Credentials {
@@ -46,21 +48,36 @@ fn select_credential(
         .or_else(|| normalized_value(dotenv_values.get(name).map(String::as_str)))
 }
 
+fn select_credential_candidates(
+    names: &[&str],
+    process_values: &HashMap<String, String>,
+    dotenv_values: &HashMap<String, String>,
+) -> Option<String> {
+    names
+        .iter()
+        .find_map(|name| normalized_value(process_values.get(*name).map(String::as_str)))
+        .or_else(|| {
+            names
+                .iter()
+                .find_map(|name| normalized_value(dotenv_values.get(*name).map(String::as_str)))
+        })
+}
+
 pub fn trade_credentials() -> Option<Credentials> {
-    let process_api_key = std::env::var("ALPACA_TRADE_API_KEY").ok();
-    let process_secret_key = std::env::var("ALPACA_TRADE_SECRET_KEY").ok();
+    let process_values = API_KEY_CANDIDATES
+        .iter()
+        .chain(SECRET_KEY_CANDIDATES.iter())
+        .filter_map(|name| {
+            normalized_value(std::env::var(name).ok().as_deref())
+                .map(|value| ((*name).to_owned(), value))
+        })
+        .collect::<HashMap<_, _>>();
     let dotenv_values = dotenv_values();
 
-    let api_key = select_credential(
-        "ALPACA_TRADE_API_KEY",
-        process_api_key.as_deref(),
-        dotenv_values,
-    )?;
-    let secret_key = select_credential(
-        "ALPACA_TRADE_SECRET_KEY",
-        process_secret_key.as_deref(),
-        dotenv_values,
-    )?;
+    let api_key =
+        select_credential_candidates(&API_KEY_CANDIDATES, &process_values, dotenv_values)?;
+    let secret_key =
+        select_credential_candidates(&SECRET_KEY_CANDIDATES, &process_values, dotenv_values)?;
 
     Some(Credentials {
         api_key,
@@ -81,7 +98,10 @@ mod tests {
 
     #[test]
     fn normalized_value_trims_non_blank_values() {
-        assert_eq!(normalized_value(Some("  secret  ")).as_deref(), Some("secret"));
+        assert_eq!(
+            normalized_value(Some("  secret  ")).as_deref(),
+            Some("secret")
+        );
     }
 
     #[test]
@@ -96,11 +116,71 @@ mod tests {
 
     #[test]
     fn select_credential_falls_back_to_trimmed_dotenv_value() {
-        let dotenv =
-            HashMap::from([("ALPACA_TRADE_SECRET_KEY".to_owned(), "  dotenv-secret  ".to_owned())]);
+        let dotenv = HashMap::from([(
+            "ALPACA_TRADE_SECRET_KEY".to_owned(),
+            "  dotenv-secret  ".to_owned(),
+        )]);
 
         assert_eq!(
             select_credential("ALPACA_TRADE_SECRET_KEY", Some("   "), &dotenv).as_deref(),
+            Some("dotenv-secret")
+        );
+    }
+
+    #[test]
+    fn select_credential_candidates_falls_back_to_standard_process_env_name() {
+        let process =
+            HashMap::from([("APCA_API_KEY_ID".to_owned(), "  official-key  ".to_owned())]);
+        let dotenv = HashMap::new();
+
+        assert_eq!(
+            select_credential_candidates(
+                &["ALPACA_TRADE_API_KEY", "APCA_API_KEY_ID"],
+                &process,
+                &dotenv,
+            )
+            .as_deref(),
+            Some("official-key")
+        );
+    }
+
+    #[test]
+    fn select_credential_candidates_favors_process_env_over_dotenv_aliases() {
+        let process = HashMap::from([(
+            "APCA_API_SECRET_KEY".to_owned(),
+            "process-secret".to_owned(),
+        )]);
+        let dotenv = HashMap::from([(
+            "ALPACA_TRADE_SECRET_KEY".to_owned(),
+            "dotenv-secret".to_owned(),
+        )]);
+
+        assert_eq!(
+            select_credential_candidates(
+                &["ALPACA_TRADE_SECRET_KEY", "APCA_API_SECRET_KEY"],
+                &process,
+                &dotenv,
+            )
+            .as_deref(),
+            Some("process-secret")
+        );
+    }
+
+    #[test]
+    fn select_credential_candidates_falls_back_to_standard_dotenv_name() {
+        let process = HashMap::new();
+        let dotenv = HashMap::from([(
+            "APCA_API_SECRET_KEY".to_owned(),
+            "  dotenv-secret  ".to_owned(),
+        )]);
+
+        assert_eq!(
+            select_credential_candidates(
+                &["ALPACA_TRADE_SECRET_KEY", "APCA_API_SECRET_KEY"],
+                &process,
+                &dotenv,
+            )
+            .as_deref(),
             Some("dotenv-secret")
         );
     }
