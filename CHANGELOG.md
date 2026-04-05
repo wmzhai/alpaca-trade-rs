@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.10 - 2026-04-05
+
+- Add the credential-gated `clock_live` Alpaca Paper smoke test for Phase 2.
+- Update the public workspace and crate docs to include `clock` in the supported Trading HTTP REST scope.
+- Mark `clock` as implemented and live-first in the Trading API coverage manifest.
+
 ## 0.1.9 - 2026-04-05
 
 - Implement `GET /v2/clock` in `ClockClient` using the existing authenticated HTTP transport.

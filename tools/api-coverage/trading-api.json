@@ -64,18 +64,18 @@
       "family": "clock",
       "phase": 2,
       "public_entry": "clock()",
-      "status": "planned",
+      "status": "implemented",
       "operations": [
         {
           "operation": "get_clock",
           "method": "GET",
           "path": "/v2/clock",
           "reference": "https://docs.alpaca.markets/reference/getclock",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Read-only market clock endpoint."
+          "mirror_status": "implemented",
+          "convenience_status": "implemented",
+          "mock_status": "not_planned",
+          "live_test_status": "credential_gated",
+          "notes": "Phase 2 ships `clock` as a live-first read-only resource. Normal-path verification uses a credential-gated Alpaca Paper smoke test, and `clock` stays out of `alpaca-trade-mock`."
         }
       ]
     },

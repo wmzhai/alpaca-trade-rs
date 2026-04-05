@@ -5,6 +5,7 @@ Async Rust client for the non-crypto Alpaca Trading HTTP API.
 ## Current Coverage
 
 - `account`
+- `clock`
 
 ## Defaults
 
@@ -22,8 +23,8 @@ let client = Client::builder()
     .secret_key(std::env::var("APCA_API_SECRET_KEY").expect("APCA_API_SECRET_KEY is required"))
     .build()?;
 
-let account = client.account().get().await?;
-println!("{}", account.status);
+let clock = client.clock().get().await?;
+println!("{} {}", clock.timestamp, clock.is_open);
 # Ok(())
 # }
 ```

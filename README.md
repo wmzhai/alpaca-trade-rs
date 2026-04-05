@@ -4,13 +4,13 @@
 
 ## Current Status
 
-- Phase 1 scope: `account`
+- Phase 2 scope: `account`, `clock`
 - API surface: non-crypto Alpaca Trading HTTP REST only
 - Explicit exclusions: stream / websocket APIs, crypto trading APIs
 - Published crate: `alpaca-trade`
 - Internal workspace tool: `alpaca-trade-mock`
 - Default client environment: Alpaca Paper Trading
-- Phase 1 happy-path testing: live-first, with credential-gated Alpaca Paper smoke coverage when credentials are available
+- Phase 2 happy-path testing: live-first, with credential-gated Alpaca Paper smoke coverage when credentials are available
 
 ## Workspace
 
@@ -18,7 +18,7 @@
 - `crates/alpaca-trade-mock`: internal workspace helper for future market-hours-sensitive Trading API tests
 - `tools/api-coverage/trading-api.json`: family-level coverage manifest for Trading HTTP REST audit work
 
-## Phase 1 API
+## Phase 2 API
 
 ```rust
 use alpaca_trade::Client;
@@ -29,13 +29,13 @@ let client = Client::builder()
     .secret_key(std::env::var("APCA_API_SECRET_KEY").expect("APCA_API_SECRET_KEY is required"))
     .build()?;
 
-let account = client.account().get().await?;
-println!("{}", account.status);
+let clock = client.clock().get().await?;
+println!("{} {}", clock.timestamp, clock.is_open);
 # Ok(())
 # }
 ```
 
-## Phase 1 Testing
+## Phase 2 Testing
 
 Create a local root `.env` file with either:
 
@@ -45,7 +45,7 @@ Create a local root `.env` file with either:
 Run the full automated test suite with `cargo test --workspace -- --nocapture`.
 
 Notes:
-- `account_model` and `account_transport` stay local/offline.
-- `account_live` is the credential-gated live smoke path against the official Alpaca Paper API.
+- `account_model`, `account_transport`, `clock_model`, and `clock_transport` stay local/offline.
+- `account_live` and `clock_live` are the credential-gated live smoke paths against the official Alpaca Paper API.
 - The live test helper accepts both the standard `APCA_*` names and the repo-local `ALPACA_TRADE_*` aliases.
 - If `.env` credentials are missing, the live test prints a skip message and exits successfully, so a green local run may not include a real paper request.
