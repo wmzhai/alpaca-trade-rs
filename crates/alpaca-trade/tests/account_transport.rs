@@ -20,6 +20,10 @@ struct TestServer {
 
 impl TestServer {
     fn spawn(response: String) -> Self {
+        Self::spawn_scripted(vec![response])
+    }
+
+    fn spawn_scripted(responses: Vec<String>) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
         let addr = listener
             .local_addr()
@@ -27,35 +31,37 @@ impl TestServer {
         let (request_tx, request_rx) = mpsc::channel();
 
         let handle = thread::spawn(move || {
-            let (mut stream, _) = listener.accept().expect("server should accept connection");
-            let mut buffer = [0_u8; 8192];
-            let bytes_read = stream
-                .read(&mut buffer)
-                .expect("server should read request");
-            let request = String::from_utf8_lossy(&buffer[..bytes_read]).into_owned();
-            let mut lines = request.split("\r\n");
-            let request_line = lines
-                .next()
-                .expect("request should contain a request line")
-                .to_owned();
-            let mut headers = HashMap::new();
+            for response in responses {
+                let (mut stream, _) = listener.accept().expect("server should accept connection");
+                let mut buffer = [0_u8; 8192];
+                let bytes_read = stream
+                    .read(&mut buffer)
+                    .expect("server should read request");
+                let request = String::from_utf8_lossy(&buffer[..bytes_read]).into_owned();
+                let mut lines = request.split("\r\n");
+                let request_line = lines
+                    .next()
+                    .expect("request should contain a request line")
+                    .to_owned();
+                let mut headers = HashMap::new();
 
-            for line in lines.take_while(|line| !line.is_empty()) {
-                if let Some((name, value)) = line.split_once(':') {
-                    headers.insert(name.trim().to_ascii_lowercase(), value.trim().to_owned());
+                for line in lines.take_while(|line| !line.is_empty()) {
+                    if let Some((name, value)) = line.split_once(':') {
+                        headers.insert(name.trim().to_ascii_lowercase(), value.trim().to_owned());
+                    }
                 }
+
+                request_tx
+                    .send(CapturedRequest {
+                        request_line,
+                        headers,
+                    })
+                    .expect("request should be captured");
+
+                stream
+                    .write_all(response.as_bytes())
+                    .expect("server should write response");
             }
-
-            request_tx
-                .send(CapturedRequest {
-                    request_line,
-                    headers,
-                })
-                .expect("request should be captured");
-
-            stream
-                .write_all(response.as_bytes())
-                .expect("server should write response");
         });
 
         Self {
@@ -114,10 +120,12 @@ async fn account_get_hits_official_path_and_sends_auth_headers() {
 
 #[tokio::test]
 async fn account_get_maps_429_to_rate_limited() {
-    let server = TestServer::spawn(
+    let server = TestServer::spawn_scripted(vec![
+        "HTTP/1.1 429 Too Many Requests\r\nretry-after: 0\r\ncontent-length: 9\r\nconnection: close\r\n\r\nslow down"
+            .to_owned(),
         "HTTP/1.1 429 Too Many Requests\r\nretry-after: 17\r\ncontent-length: 9\r\nconnection: close\r\n\r\nslow down"
             .to_owned(),
-    );
+    ]);
 
     let error = Client::builder()
         .api_key("key")
@@ -131,9 +139,9 @@ async fn account_get_maps_429_to_rate_limited() {
         .expect_err("429 response must fail");
 
     match error {
-        Error::RateLimited { retry_after, body } => {
-            assert_eq!(retry_after.as_deref(), Some("17"));
-            assert_eq!(body.as_deref(), Some("slow down"));
+        Error::RateLimited(meta) => {
+            assert_eq!(meta.retry_after.as_deref(), Some("17"));
+            assert_eq!(meta.body.as_deref(), Some("slow down"));
         }
         other => panic!("expected rate limited error, got {other:?}"),
     }
@@ -144,10 +152,12 @@ async fn account_get_maps_429_to_rate_limited() {
 
 #[tokio::test]
 async fn account_get_maps_non_success_status_to_http_status() {
-    let server = TestServer::spawn(
+    let server = TestServer::spawn_scripted(vec![
         "HTTP/1.1 503 Service Unavailable\r\ncontent-length: 15\r\nconnection: close\r\n\r\nservice offline"
             .to_owned(),
-    );
+        "HTTP/1.1 503 Service Unavailable\r\ncontent-length: 15\r\nconnection: close\r\n\r\nservice offline"
+            .to_owned(),
+    ]);
 
     let error = Client::builder()
         .api_key("key")
@@ -161,9 +171,9 @@ async fn account_get_maps_non_success_status_to_http_status() {
         .expect_err("503 response must fail");
 
     match error {
-        Error::HttpStatus { status, body } => {
-            assert_eq!(status, 503);
-            assert_eq!(body.as_deref(), Some("service offline"));
+        Error::HttpStatus(meta) => {
+            assert_eq!(meta.status, Some(503));
+            assert_eq!(meta.body.as_deref(), Some("service offline"));
         }
         other => panic!("expected http status error, got {other:?}"),
     }
@@ -191,7 +201,7 @@ async fn account_get_maps_malformed_json_to_deserialize() {
         .expect_err("invalid json must fail");
 
     match error {
-        Error::Deserialize(message) => {
+        Error::Deserialize { message, .. } => {
             assert!(!message.is_empty());
         }
         other => panic!("expected deserialize error, got {other:?}"),

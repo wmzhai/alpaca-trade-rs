@@ -12,7 +12,7 @@ pub(crate) struct Endpoint {
 }
 
 impl Endpoint {
-    fn new(
+    pub(crate) fn new(
         name: &'static str,
         method: Method,
         path: impl Into<String>,
@@ -50,12 +50,10 @@ impl Endpoint {
         ))
     }
 
-    #[allow(dead_code)]
     pub(crate) fn name(&self) -> &'static str {
         self.name
     }
 
-    #[allow(dead_code)]
     pub(crate) fn method(&self) -> Method {
         self.method.clone()
     }

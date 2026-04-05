@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3 - 2026-04-05
+
+- Replace the single GET-only transport helper with a unified HTTP pipeline that can shape query/body requests, accept `204 No Content`, and emit richer request metadata.
+- Add public Trading-safe retry and observer configuration types for future builder wiring.
+- Upgrade transport failures to include endpoint name, method, status, request id, retry-after, and a bounded body snippet.
+
 ## 0.3.2 - 2026-04-05
 
 - Add shared request guardrails for trimmed and reserved-character-safe path validation, ordered query writing, empty-aware CSV query encoding, and an initial pagination `collect_all()` landing point.
