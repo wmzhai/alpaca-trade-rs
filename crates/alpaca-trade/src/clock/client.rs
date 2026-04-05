@@ -1,7 +1,10 @@
 use std::sync::Arc;
 use std::{fmt, fmt::Debug};
 
+use crate::clock::Clock;
 use crate::client::Inner;
+use crate::error::Error;
+use crate::transport::endpoint::Endpoint;
 
 #[derive(Clone)]
 pub struct ClockClient {
@@ -11,6 +14,18 @@ pub struct ClockClient {
 impl ClockClient {
     pub(crate) fn new(inner: Arc<Inner>) -> Self {
         Self { _inner: inner }
+    }
+
+    pub async fn get(&self) -> Result<Clock, Error> {
+        self._inner
+            .http
+            .get_json(
+                &self._inner.base_url,
+                Endpoint::Clock,
+                &self._inner.auth,
+                vec![],
+            )
+            .await
     }
 }
 

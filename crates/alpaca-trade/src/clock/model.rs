@@ -1,4 +1,6 @@
-#[derive(Clone, Debug, Default, PartialEq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Clock {
     pub timestamp: String,
     pub is_open: bool,

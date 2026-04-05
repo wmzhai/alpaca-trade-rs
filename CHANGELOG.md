@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.9 - 2026-04-05
+
+- Implement `GET /v2/clock` in `ClockClient` using the existing authenticated HTTP transport.
+- Add local model coverage for the official `clock` response shape and required fields.
+- Add local transport coverage for the `/v2/clock` path and Alpaca auth headers.
+
 ## 0.1.8 - 2026-04-05
 
 - Add the Phase 2 `clock` public API skeleton with `Client::clock()`, `ClockClient`, and `Clock`.
