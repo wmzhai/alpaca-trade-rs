@@ -78,7 +78,7 @@ impl HttpClient {
         let response = self.send(base_url, endpoint, auth, request).await?;
         let body_snippet = bounded_body_snippet(&response.body);
 
-        serde_json::from_str(&response.body).map_err(|error| {
+        let parsed = serde_json::from_str(&response.body).map_err(|error| {
             let error = Error::Deserialize {
                 message: error.to_string(),
                 meta: self.error_meta(
@@ -91,7 +91,11 @@ impl HttpClient {
             };
             self.notify_error(endpoint, &error);
             error
-        })
+        })?;
+
+        self.notify_response(endpoint, response.status, response.request_id);
+
+        Ok(parsed)
     }
 
     #[allow(dead_code)]
@@ -116,6 +120,8 @@ impl HttpClient {
             return Err(error);
         }
 
+        self.notify_response(endpoint, response.status, response.request_id);
+
         Ok(NoContent)
     }
 
@@ -139,7 +145,12 @@ impl HttpClient {
                 url: url.clone(),
             });
 
-            let request_builder = self.build_request(&url, endpoint, auth, &request)?;
+            let request_builder =
+                self.build_request(&url, endpoint, auth, &request)
+                    .map_err(|error| {
+                        self.notify_error(endpoint, &error);
+                        error
+                    })?;
             let response = match request_builder.send().await {
                 Ok(response) => response,
                 Err(error) => {
@@ -190,13 +201,6 @@ impl HttpClient {
             })?;
 
             if status.is_success() {
-                self.observer.on_response(&ResponseEvent {
-                    endpoint: endpoint_name.clone(),
-                    method: method_name.clone(),
-                    status: status.as_u16(),
-                    request_id: request_id.clone(),
-                });
-
                 return Ok(ResponseParts {
                     status,
                     request_id,
@@ -276,6 +280,15 @@ impl HttpClient {
             request_id: meta.and_then(|meta| meta.request_id.clone()),
         });
     }
+
+    fn notify_response(&self, endpoint: &Endpoint, status: StatusCode, request_id: Option<String>) {
+        self.observer.on_response(&ResponseEvent {
+            endpoint: endpoint.name().to_owned(),
+            method: endpoint.method().as_str().to_owned(),
+            status: status.as_u16(),
+            request_id,
+        });
+    }
 }
 
 impl fmt::Debug for HttpClient {
@@ -317,9 +330,94 @@ fn parse_retry_after_ms(value: Option<&str>) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     use super::HttpClient;
+    use crate::observer::{ErrorEvent, Observer, RequestStart, ResponseEvent, RetryEvent};
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    enum ObservedEvent {
+        Start {
+            endpoint: String,
+            method: String,
+        },
+        Retry {
+            endpoint: String,
+            method: String,
+            attempt: usize,
+            status: Option<u16>,
+        },
+        Response {
+            endpoint: String,
+            method: String,
+            status: u16,
+        },
+        Error {
+            endpoint: String,
+            method: String,
+            status: Option<u16>,
+        },
+    }
+
+    #[derive(Debug, Default)]
+    struct RecordingObserver {
+        events: Mutex<Vec<ObservedEvent>>,
+    }
+
+    impl RecordingObserver {
+        fn snapshot(&self) -> Vec<ObservedEvent> {
+            self.events
+                .lock()
+                .expect("observer lock should succeed")
+                .clone()
+        }
+    }
+
+    impl Observer for RecordingObserver {
+        fn on_request_start(&self, event: &RequestStart) {
+            self.events
+                .lock()
+                .expect("observer lock should succeed")
+                .push(ObservedEvent::Start {
+                    endpoint: event.endpoint.clone(),
+                    method: event.method.clone(),
+                });
+        }
+
+        fn on_retry(&self, event: &RetryEvent) {
+            self.events
+                .lock()
+                .expect("observer lock should succeed")
+                .push(ObservedEvent::Retry {
+                    endpoint: event.endpoint.clone(),
+                    method: event.method.clone(),
+                    attempt: event.attempt,
+                    status: event.status,
+                });
+        }
+
+        fn on_response(&self, event: &ResponseEvent) {
+            self.events
+                .lock()
+                .expect("observer lock should succeed")
+                .push(ObservedEvent::Response {
+                    endpoint: event.endpoint.clone(),
+                    method: event.method.clone(),
+                    status: event.status,
+                });
+        }
+
+        fn on_error(&self, event: &ErrorEvent) {
+            self.events
+                .lock()
+                .expect("observer lock should succeed")
+                .push(ObservedEvent::Error {
+                    endpoint: event.endpoint.clone(),
+                    method: event.method.clone(),
+                    status: event.status,
+                });
+        }
+    }
 
     struct ScriptedServer {
         base_url: String,
@@ -348,6 +446,18 @@ mod tests {
             Self {
                 base_url: format!("http://{addr}"),
             }
+        }
+    }
+
+    fn test_auth() -> crate::auth::Auth {
+        crate::auth::Auth::new(Some("key".to_owned()), Some("secret".to_owned()))
+            .expect("auth should build")
+    }
+
+    fn empty_request_parts() -> crate::transport::request::RequestParts {
+        crate::transport::request::RequestParts {
+            query: Vec::new(),
+            json_body: None,
         }
     }
 
@@ -423,5 +533,226 @@ mod tests {
             }
             other => panic!("expected http status error, got {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn observer_notifies_validated_json_success_only() {
+        let body = "{\"ok\":true,\"n\":1}";
+        let server = ScriptedServer::spawn(vec![format!(
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        )]);
+        let observer = Arc::new(RecordingObserver::default());
+        let client = HttpClient::with_client(
+            reqwest::Client::new(),
+            crate::RetryPolicy::trading_safe(),
+            observer.clone(),
+        );
+
+        let value = client
+            .send_json::<serde_json::Value>(
+                &server.base_url,
+                &crate::transport::endpoint::Endpoint::account_get(),
+                &test_auth(),
+                empty_request_parts(),
+            )
+            .await
+            .expect("json request should succeed");
+
+        assert_eq!(value["ok"], true);
+        assert_eq!(
+            observer.snapshot(),
+            vec![
+                ObservedEvent::Start {
+                    endpoint: "account.get".to_owned(),
+                    method: "GET".to_owned(),
+                },
+                ObservedEvent::Response {
+                    endpoint: "account.get".to_owned(),
+                    method: "GET".to_owned(),
+                    status: 200,
+                },
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn observer_reports_malformed_json_as_error_without_success() {
+        let server = ScriptedServer::spawn(vec![
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 15\r\nconnection: close\r\n\r\n{not valid json"
+                .to_owned(),
+        ]);
+        let observer = Arc::new(RecordingObserver::default());
+        let client = HttpClient::with_client(
+            reqwest::Client::new(),
+            crate::RetryPolicy::trading_safe(),
+            observer.clone(),
+        );
+
+        let error = client
+            .send_json::<serde_json::Value>(
+                &server.base_url,
+                &crate::transport::endpoint::Endpoint::account_get(),
+                &test_auth(),
+                empty_request_parts(),
+            )
+            .await
+            .expect_err("invalid json should fail");
+
+        assert!(matches!(error, crate::Error::Deserialize { .. }));
+        assert_eq!(
+            observer.snapshot(),
+            vec![
+                ObservedEvent::Start {
+                    endpoint: "account.get".to_owned(),
+                    method: "GET".to_owned(),
+                },
+                ObservedEvent::Error {
+                    endpoint: "account.get".to_owned(),
+                    method: "GET".to_owned(),
+                    status: Some(200),
+                },
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn observer_notifies_no_content_success_only_after_204_validation() {
+        let server = ScriptedServer::spawn(vec![
+            "HTTP/1.1 204 No Content\r\ncontent-length: 0\r\nconnection: close\r\n\r\n".to_owned(),
+        ]);
+        let observer = Arc::new(RecordingObserver::default());
+        let client = HttpClient::with_client(
+            reqwest::Client::new(),
+            crate::RetryPolicy::trading_safe(),
+            observer.clone(),
+        );
+
+        client
+            .send_no_content(
+                &server.base_url,
+                &crate::transport::endpoint::Endpoint::new(
+                    "positions.close_single",
+                    reqwest::Method::DELETE,
+                    "/v2/positions/AAPL",
+                    true,
+                ),
+                &test_auth(),
+                empty_request_parts(),
+            )
+            .await
+            .expect("204 should validate as no-content success");
+
+        assert_eq!(
+            observer.snapshot(),
+            vec![
+                ObservedEvent::Start {
+                    endpoint: "positions.close_single".to_owned(),
+                    method: "DELETE".to_owned(),
+                },
+                ObservedEvent::Response {
+                    endpoint: "positions.close_single".to_owned(),
+                    method: "DELETE".to_owned(),
+                    status: 204,
+                },
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn observer_reports_retry_then_final_success() {
+        let server = ScriptedServer::spawn(vec![
+            "HTTP/1.1 503 Service Unavailable\r\ncontent-length: 15\r\nconnection: close\r\n\r\nservice offline"
+                .to_owned(),
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 11\r\nconnection: close\r\n\r\n{\"ok\":true}"
+                .to_owned(),
+        ]);
+        let observer = Arc::new(RecordingObserver::default());
+        let client = HttpClient::with_client(
+            reqwest::Client::new(),
+            crate::RetryPolicy {
+                max_get_attempts: 2,
+                base_delay_ms: 0,
+            },
+            observer.clone(),
+        );
+
+        let value = client
+            .send_json::<serde_json::Value>(
+                &server.base_url,
+                &crate::transport::endpoint::Endpoint::account_get(),
+                &test_auth(),
+                empty_request_parts(),
+            )
+            .await
+            .expect("retry should lead to success");
+
+        assert_eq!(value["ok"], true);
+        assert_eq!(
+            observer.snapshot(),
+            vec![
+                ObservedEvent::Start {
+                    endpoint: "account.get".to_owned(),
+                    method: "GET".to_owned(),
+                },
+                ObservedEvent::Retry {
+                    endpoint: "account.get".to_owned(),
+                    method: "GET".to_owned(),
+                    attempt: 1,
+                    status: Some(503),
+                },
+                ObservedEvent::Start {
+                    endpoint: "account.get".to_owned(),
+                    method: "GET".to_owned(),
+                },
+                ObservedEvent::Response {
+                    endpoint: "account.get".to_owned(),
+                    method: "GET".to_owned(),
+                    status: 200,
+                },
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn observer_reports_pre_send_request_construction_errors() {
+        let observer = Arc::new(RecordingObserver::default());
+        let client = HttpClient::with_client(
+            reqwest::Client::new(),
+            crate::RetryPolicy::trading_safe(),
+            observer.clone(),
+        );
+        let invalid_auth = crate::auth::Auth::new(
+            Some("key\nwith-newline".to_owned()),
+            Some("secret".to_owned()),
+        )
+        .expect("auth should allow non-empty credentials");
+
+        let error = client
+            .send_json::<serde_json::Value>(
+                "http://127.0.0.1:1",
+                &crate::transport::endpoint::Endpoint::account_get(),
+                &invalid_auth,
+                empty_request_parts(),
+            )
+            .await
+            .expect_err("invalid header value should fail before network send");
+
+        assert!(matches!(error, crate::Error::InvalidConfiguration(_)));
+        assert_eq!(
+            observer.snapshot(),
+            vec![
+                ObservedEvent::Start {
+                    endpoint: "account.get".to_owned(),
+                    method: "GET".to_owned(),
+                },
+                ObservedEvent::Error {
+                    endpoint: "account.get".to_owned(),
+                    method: "GET".to_owned(),
+                    status: None,
+                },
+            ]
+        );
     }
 }

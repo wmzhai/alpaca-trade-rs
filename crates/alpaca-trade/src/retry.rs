@@ -1,3 +1,4 @@
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RetryPolicy {
     pub max_get_attempts: usize,

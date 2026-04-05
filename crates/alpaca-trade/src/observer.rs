@@ -1,3 +1,5 @@
+/// Transport observer hooks. `on_response` only fires after the client has
+/// validated the response as a successful result for the requested operation.
 pub trait Observer: Send + Sync + 'static {
     fn on_request_start(&self, _event: &RequestStart) {}
     fn on_retry(&self, _event: &RetryEvent) {}
@@ -5,6 +7,7 @@ pub trait Observer: Send + Sync + 'static {
     fn on_error(&self, _event: &ErrorEvent) {}
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequestStart {
     pub endpoint: String,
@@ -12,6 +15,7 @@ pub struct RequestStart {
     pub url: String,
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RetryEvent {
     pub endpoint: String,
@@ -21,6 +25,7 @@ pub struct RetryEvent {
     pub wait_ms: u64,
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResponseEvent {
     pub endpoint: String,
@@ -29,6 +34,7 @@ pub struct ResponseEvent {
     pub request_id: Option<String>,
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ErrorEvent {
     pub endpoint: String,

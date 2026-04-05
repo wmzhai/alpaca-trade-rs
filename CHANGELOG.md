@@ -3,7 +3,7 @@
 ## 0.3.3 - 2026-04-05
 
 - Replace the single GET-only transport helper with a unified HTTP pipeline that can shape query/body requests, accept `204 No Content`, and emit richer request metadata.
-- Add public Trading-safe retry and observer configuration types for future builder wiring.
+- Add public Trading-safe retry and observer configuration types for future builder wiring, with observer success hooks reserved for validated client-level success.
 - Upgrade transport failures to include endpoint name, method, status, request id, retry-after, and a bounded body snippet.
 
 ## 0.3.2 - 2026-04-05

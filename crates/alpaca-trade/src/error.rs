@@ -1,6 +1,7 @@
 use std::error::Error as StdError;
 use std::fmt;
 
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ErrorMeta {
     pub endpoint: String,
