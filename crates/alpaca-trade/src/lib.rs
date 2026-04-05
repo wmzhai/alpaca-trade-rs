@@ -1,4 +1,5 @@
 pub mod account;
+pub mod assets;
 mod auth;
 pub mod calendar;
 mod client;

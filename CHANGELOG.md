@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2 - 2026-04-05
+
+- Add the Phase 5 `assets` public API skeleton with `Client::assets()`, `AssetsClient`, `Asset`, and `ListRequest`.
+- Add local request-shape coverage for the official `status`, `asset_class`, `exchange`, and `attributes` query words.
+- Keep the initial Phase 5 scaffold thin while model, transport, live coverage, and docs land in later tasks.
+
 ## 0.4.1 - 2026-04-05
 
 - Fail fast during `Client::builder().build()` when `api_key` or `secret_key` cannot be encoded as HTTP header values, so invalid credentials no longer survive until the first authenticated request.

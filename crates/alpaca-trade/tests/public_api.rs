@@ -1,7 +1,8 @@
 use alpaca_trade::{
     Client, NoopObserver, RetryPolicy,
     account::Account,
-    calendar::{Calendar, ListRequest},
+    assets::{Asset, ListRequest as AssetsListRequest},
+    calendar::{Calendar, ListRequest as CalendarListRequest},
     clock::Clock,
 };
 
@@ -25,7 +26,7 @@ fn assert_debug_redacts(debug: &str) {
 }
 
 #[test]
-fn public_api_exposes_account_calendar_and_clock_types_and_accessors() {
+fn public_api_exposes_account_assets_calendar_and_clock_types_and_accessors() {
     let client = Client::builder()
         .api_key(API_KEY_SENTINEL)
         .secret_key(SECRET_KEY_SENTINEL)
@@ -33,11 +34,14 @@ fn public_api_exposes_account_calendar_and_clock_types_and_accessors() {
         .expect("client should build");
 
     let _ = client.account();
+    let _ = client.assets();
     let _ = client.calendar();
     let _ = client.clock();
     let _ = Account::default();
+    let _ = Asset::default();
+    let _ = AssetsListRequest::default();
     let _ = Calendar::default();
-    let _ = ListRequest::default();
+    let _ = CalendarListRequest::default();
     let _ = Clock::default();
 }
 
@@ -133,6 +137,19 @@ fn calendar_client_debug_does_not_expose_credentials() {
         .expect("client should build");
 
     let debug = format!("{:?}", client.calendar());
+
+    assert_debug_redacts(&debug);
+}
+
+#[test]
+fn assets_client_debug_does_not_expose_credentials() {
+    let client = Client::builder()
+        .api_key(API_KEY_SENTINEL)
+        .secret_key(SECRET_KEY_SENTINEL)
+        .build()
+        .expect("client should build");
+
+    let debug = format!("{:?}", client.assets());
 
     assert_debug_redacts(&debug);
 }

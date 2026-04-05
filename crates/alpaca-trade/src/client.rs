@@ -3,6 +3,7 @@ use std::time::Duration;
 use std::{fmt, fmt::Debug};
 
 use crate::account::AccountClient;
+use crate::assets::AssetsClient;
 use crate::auth::{
     Auth, DEFAULT_API_KEY_ENV, DEFAULT_SECRET_KEY_ENV, load_credentials_from_env,
     load_credentials_from_env_names,
@@ -85,6 +86,10 @@ impl Client {
 
     pub fn account(&self) -> AccountClient {
         AccountClient::new(Arc::clone(&self.inner))
+    }
+
+    pub fn assets(&self) -> AssetsClient {
+        AssetsClient::new(Arc::clone(&self.inner))
     }
 
     pub fn calendar(&self) -> CalendarClient {
