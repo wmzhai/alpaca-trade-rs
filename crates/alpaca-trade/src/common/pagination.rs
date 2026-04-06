@@ -15,10 +15,7 @@ pub(crate) trait PaginatedResponse: Sized {
 }
 
 fn pagination_contract_violation(message: impl Into<String>) -> Error {
-    Error::InvalidRequest(format!(
-        "pagination contract violation: {}",
-        message.into()
-    ))
+    Error::InvalidRequest(format!("pagination contract violation: {}", message.into()))
 }
 
 #[allow(dead_code)]
@@ -43,6 +40,15 @@ where
         }
 
         let next_page = fetch_page(initial_request.with_page_token(Some(page_token))).await?;
+
+        if let Some(next_page_token) = next_page.next_page_token() {
+            if seen_page_tokens.contains(next_page_token) {
+                return Err(pagination_contract_violation(format!(
+                    "repeated next_page_token `{next_page_token}`"
+                )));
+            }
+        }
+
         combined.merge_page(next_page)?;
     }
 
@@ -71,11 +77,12 @@ mod tests {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone)]
     struct FakeResponse {
         items: Vec<&'static str>,
         next_page_token: Option<String>,
         clear_calls: usize,
+        merge_calls: Arc<AtomicUsize>,
         merge_failure: Option<&'static str>,
     }
 
@@ -85,6 +92,8 @@ mod tests {
         }
 
         fn merge_page(&mut self, next: Self) -> Result<(), Error> {
+            next.merge_calls.fetch_add(1, Ordering::SeqCst);
+
             if let Some(message) = next.merge_failure {
                 return Err(Error::InvalidRequest(format!(
                     "pagination contract violation: {message}"
@@ -105,70 +114,75 @@ mod tests {
 
     #[tokio::test]
     async fn collect_all_merges_pages_and_clears_next_page_token() {
-        let response = collect_all(
-            FakeRequest { page_token: None },
-            |request| async move {
+        let merge_calls = Arc::new(AtomicUsize::new(0));
+        let response = collect_all(FakeRequest { page_token: None }, |request| {
+            let merge_calls = Arc::clone(&merge_calls);
+
+            async move {
                 match request.page_token.as_deref() {
                     None => Ok(FakeResponse {
                         items: vec!["AAPL", "MSFT"],
                         next_page_token: Some("cursor-2".to_owned()),
                         clear_calls: 0,
+                        merge_calls: Arc::clone(&merge_calls),
                         merge_failure: None,
                     }),
                     Some("cursor-2") => Ok(FakeResponse {
                         items: vec!["TSLA"],
                         next_page_token: None,
                         clear_calls: 0,
+                        merge_calls: Arc::clone(&merge_calls),
                         merge_failure: None,
                     }),
                     other => panic!("unexpected page token: {other:?}"),
                 }
-            },
-        )
+            }
+        })
         .await
         .expect("pagination should succeed");
 
         assert_eq!(response.items, vec!["AAPL", "MSFT", "TSLA"]);
         assert_eq!(response.next_page_token(), None);
         assert_eq!(response.clear_calls, 1);
+        assert_eq!(response.merge_calls.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]
     async fn collect_all_rejects_repeated_next_page_tokens() {
         let second_page_fetches = Arc::new(AtomicUsize::new(0));
         let second_page_fetches_for_closure = Arc::clone(&second_page_fetches);
+        let merge_calls = Arc::new(AtomicUsize::new(0));
+        let merge_calls_for_closure = Arc::clone(&merge_calls);
 
-        let error = collect_all(
-            FakeRequest { page_token: None },
-            move |request| {
-                let second_page_fetches = Arc::clone(&second_page_fetches_for_closure);
+        let error = collect_all(FakeRequest { page_token: None }, move |request| {
+            let second_page_fetches = Arc::clone(&second_page_fetches_for_closure);
+            let merge_calls = Arc::clone(&merge_calls_for_closure);
 
-                async move {
-                    match request.page_token.as_deref() {
-                        None => Ok(FakeResponse {
-                            items: vec!["AAPL"],
+            async move {
+                match request.page_token.as_deref() {
+                    None => Ok(FakeResponse {
+                        items: vec!["AAPL"],
+                        next_page_token: Some("cursor-2".to_owned()),
+                        clear_calls: 0,
+                        merge_calls: Arc::clone(&merge_calls),
+                        merge_failure: None,
+                    }),
+                    Some("cursor-2") if second_page_fetches.fetch_add(1, Ordering::SeqCst) == 0 => {
+                        Ok(FakeResponse {
+                            items: vec!["MSFT"],
                             next_page_token: Some("cursor-2".to_owned()),
                             clear_calls: 0,
+                            merge_calls: Arc::clone(&merge_calls),
                             merge_failure: None,
-                        }),
-                        Some("cursor-2")
-                            if second_page_fetches.fetch_add(1, Ordering::SeqCst) == 0 =>
-                        {
-                            Ok(FakeResponse {
-                                items: vec!["MSFT"],
-                                next_page_token: Some("cursor-2".to_owned()),
-                                clear_calls: 0,
-                                merge_failure: None,
-                            })
-                        }
-                        Some("cursor-2") => Err(Error::InvalidRequest(
-                            "pagination contract violation: unexpected extra fetch".to_owned(),
-                        )),
-                        other => panic!("unexpected page token: {other:?}"),
+                        })
                     }
+                    Some("cursor-2") => Err(Error::InvalidRequest(
+                        "pagination contract violation: unexpected extra fetch".to_owned(),
+                    )),
+                    other => panic!("unexpected page token: {other:?}"),
                 }
-            },
-        )
+            }
+        })
         .await
         .expect_err("repeated tokens should fail");
 
@@ -179,30 +193,36 @@ mod tests {
             }
             other => panic!("unexpected error: {other:?}"),
         }
+
+        assert_eq!(merge_calls.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]
     async fn collect_all_propagates_merge_contract_failures() {
-        let error = collect_all(
-            FakeRequest { page_token: None },
-            |request| async move {
+        let merge_calls = Arc::new(AtomicUsize::new(0));
+        let error = collect_all(FakeRequest { page_token: None }, |request| {
+            let merge_calls = Arc::clone(&merge_calls);
+
+            async move {
                 match request.page_token.as_deref() {
                     None => Ok(FakeResponse {
                         items: vec!["AAPL"],
                         next_page_token: Some("cursor-2".to_owned()),
                         clear_calls: 0,
+                        merge_calls: Arc::clone(&merge_calls),
                         merge_failure: None,
                     }),
                     Some("cursor-2") => Ok(FakeResponse {
                         items: vec!["MSFT"],
                         next_page_token: None,
                         clear_calls: 0,
+                        merge_calls: Arc::clone(&merge_calls),
                         merge_failure: Some("merge rejected next page"),
                     }),
                     other => panic!("unexpected page token: {other:?}"),
                 }
-            },
-        )
+            }
+        })
         .await
         .expect_err("merge contract failures should propagate");
 
