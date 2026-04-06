@@ -188,6 +188,7 @@ impl OptionLegRequest {
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn validate_order_id(order_id: &str) -> Result<String, Error> {
     required_path_segment("order_id", order_id)
 }

@@ -55,6 +55,14 @@ impl Endpoint {
         Self::new("orders.list", Method::GET, "/v2/orders", true)
     }
 
+    pub(crate) fn orders_create() -> Self {
+        Self::new("orders.create", Method::POST, "/v2/orders", true)
+    }
+
+    pub(crate) fn orders_cancel_all() -> Self {
+        Self::new("orders.cancel_all", Method::DELETE, "/v2/orders", true)
+    }
+
     #[allow(dead_code)]
     pub(crate) fn asset_get(symbol_or_asset_id: &str) -> Result<Self, Error> {
         let symbol_or_asset_id = required_path_segment("symbol_or_asset_id", symbol_or_asset_id)?;
@@ -84,6 +92,28 @@ impl Endpoint {
         Ok(Self::new(
             "orders.get",
             Method::GET,
+            format!("/v2/orders/{order_id}"),
+            true,
+        ))
+    }
+
+    pub(crate) fn order_replace(order_id: &str) -> Result<Self, Error> {
+        let order_id = required_path_segment("order_id", order_id)?;
+
+        Ok(Self::new(
+            "orders.replace",
+            Method::PATCH,
+            format!("/v2/orders/{order_id}"),
+            true,
+        ))
+    }
+
+    pub(crate) fn order_cancel(order_id: &str) -> Result<Self, Error> {
+        let order_id = required_path_segment("order_id", order_id)?;
+
+        Ok(Self::new(
+            "orders.cancel",
+            Method::DELETE,
             format!("/v2/orders/{order_id}"),
             true,
         ))
@@ -150,6 +180,34 @@ mod tests {
         assert_eq!(endpoint.method(), Method::GET);
         assert_eq!(endpoint.path(), "/v2/orders");
         assert!(endpoint.requires_auth());
+    }
+
+    #[test]
+    fn orders_write_endpoints_preserve_metadata() {
+        let create = Endpoint::orders_create();
+        let cancel_all = Endpoint::orders_cancel_all();
+        let replace = Endpoint::order_replace("order-id-123").expect("replace should build");
+        let cancel = Endpoint::order_cancel("order-id-123").expect("cancel should build");
+
+        assert_eq!(create.name(), "orders.create");
+        assert_eq!(create.method(), Method::POST);
+        assert_eq!(create.path(), "/v2/orders");
+        assert!(create.requires_auth());
+
+        assert_eq!(cancel_all.name(), "orders.cancel_all");
+        assert_eq!(cancel_all.method(), Method::DELETE);
+        assert_eq!(cancel_all.path(), "/v2/orders");
+        assert!(cancel_all.requires_auth());
+
+        assert_eq!(replace.name(), "orders.replace");
+        assert_eq!(replace.method(), Method::PATCH);
+        assert_eq!(replace.path(), "/v2/orders/order-id-123");
+        assert!(replace.requires_auth());
+
+        assert_eq!(cancel.name(), "orders.cancel");
+        assert_eq!(cancel.method(), Method::DELETE);
+        assert_eq!(cancel.path(), "/v2/orders/order-id-123");
+        assert!(cancel.requires_auth());
     }
 
     #[test]

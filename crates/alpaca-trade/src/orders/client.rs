@@ -33,14 +33,27 @@ impl OrdersClient {
     }
 
     pub async fn create(&self, request: CreateRequest) -> Result<Order, Error> {
-        let _ = &self.inner;
-        request.to_json()?;
-        Err(orders_not_implemented())
+        self.inner
+            .http
+            .send_json(
+                &self.inner.base_url,
+                &Endpoint::orders_create(),
+                &self.inner.auth,
+                RequestParts::with_json(request.to_json()?),
+            )
+            .await
     }
 
     pub async fn cancel_all(&self) -> Result<Vec<CancelAllOrderResult>, Error> {
-        let _ = &self.inner;
-        Err(orders_not_implemented())
+        self.inner
+            .http
+            .send_json(
+                &self.inner.base_url,
+                &Endpoint::orders_cancel_all(),
+                &self.inner.auth,
+                RequestParts::with_query(Vec::new()),
+            )
+            .await
     }
 
     pub async fn get(&self, order_id: &str) -> Result<Order, Error> {
@@ -58,16 +71,31 @@ impl OrdersClient {
     }
 
     pub async fn replace(&self, order_id: &str, request: ReplaceRequest) -> Result<Order, Error> {
-        let _ = &self.inner;
-        super::request::validate_order_id(order_id)?;
-        request.to_json()?;
-        Err(orders_not_implemented())
+        let endpoint = Endpoint::order_replace(order_id)?;
+
+        self.inner
+            .http
+            .send_json(
+                &self.inner.base_url,
+                &endpoint,
+                &self.inner.auth,
+                RequestParts::with_json(request.to_json()?),
+            )
+            .await
     }
 
     pub async fn cancel(&self, order_id: &str) -> Result<NoContent, Error> {
-        let _ = &self.inner;
-        super::request::validate_order_id(order_id)?;
-        Err(orders_not_implemented())
+        let endpoint = Endpoint::order_cancel(order_id)?;
+
+        self.inner
+            .http
+            .send_no_content(
+                &self.inner.base_url,
+                &endpoint,
+                &self.inner.auth,
+                RequestParts::with_query(Vec::new()),
+            )
+            .await
     }
 
     pub async fn get_by_client_order_id(&self, client_order_id: &str) -> Result<Order, Error> {
@@ -90,8 +118,4 @@ impl Debug for OrdersClient {
         let _ = &self.inner;
         f.debug_struct("OrdersClient").finish_non_exhaustive()
     }
-}
-
-fn orders_not_implemented() -> Error {
-    Error::InvalidConfiguration("orders transport is not implemented yet".to_owned())
 }

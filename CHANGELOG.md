@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.4 - 2026-04-06
+
+- Add `orders.create`, `orders.replace`, `orders.cancel`, and `orders.cancel_all` on the shared authenticated transport pipeline.
+- Serialize Decimal-backed order request bodies with the official field words, including bracket legs, take-profit, stop-loss, and position-intent shapes.
+- Prove that non-`GET` order writes do not use automatic retry while keeping `204 No Content` cancellation handling on the shared transport foundation.
+
 ## 0.7.3 - 2026-04-06
 
 - Add metadata-backed read transport for `orders.list`, `orders.get`, and `orders.get_by_client_order_id`.

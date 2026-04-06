@@ -1,7 +1,9 @@
 use alpaca_trade::orders::{
-    ListRequest, OrderSide, QueryOrderStatus, SortDirection,
+    CreateRequest, ListRequest, OrderClass, OrderSide, OrderType, PositionIntent,
+    QueryOrderStatus, ReplaceRequest, SortDirection, StopLoss, TakeProfit, TimeInForce,
 };
 use alpaca_trade::{Client, Error};
+use serde_json::json;
 
 #[path = "support/http_server.rs"]
 mod http_server;
@@ -40,6 +42,44 @@ fn list_request() -> ListRequest {
         symbols: Some(vec!["SPY".to_owned(), "AAPL".to_owned()]),
         side: Some(OrderSide::Buy),
         asset_class: Some("us_equity".to_owned()),
+    }
+}
+
+fn create_request() -> CreateRequest {
+    CreateRequest {
+        symbol: Some("SPY".to_owned()),
+        qty: Some(rust_decimal::Decimal::new(1, 0)),
+        notional: None,
+        side: Some(OrderSide::Buy),
+        r#type: Some(OrderType::Limit),
+        time_in_force: Some(TimeInForce::Day),
+        limit_price: Some(rust_decimal::Decimal::new(49925, 2)),
+        stop_price: None,
+        trail_price: None,
+        trail_percent: None,
+        extended_hours: Some(false),
+        client_order_id: Some("phase7-orders-create-transport-1".to_owned()),
+        order_class: Some(OrderClass::Bracket),
+        take_profit: Some(TakeProfit {
+            limit_price: rust_decimal::Decimal::new(51000, 2),
+        }),
+        stop_loss: Some(StopLoss {
+            stop_price: rust_decimal::Decimal::new(49200, 2),
+            limit_price: Some(rust_decimal::Decimal::new(49150, 2)),
+        }),
+        legs: None,
+        position_intent: Some(PositionIntent::BuyToOpen),
+    }
+}
+
+fn replace_request() -> ReplaceRequest {
+    ReplaceRequest {
+        qty: Some(rust_decimal::Decimal::new(2, 0)),
+        time_in_force: Some(TimeInForce::Day),
+        limit_price: Some(rust_decimal::Decimal::new(50000, 2)),
+        stop_price: None,
+        trail: Some(rust_decimal::Decimal::new(125, 2)),
+        client_order_id: Some("phase7-orders-replace-transport-1".to_owned()),
     }
 }
 
@@ -271,4 +311,188 @@ async fn orders_identifiers_fail_before_transport() {
 
     let requests = server.into_requests();
     assert!(requests.is_empty(), "invalid identifiers should not send any request");
+}
+
+#[tokio::test]
+async fn orders_create_posts_official_body_shape_once() {
+    let body = order_json();
+    let server = TestServer::spawn(vec![format!(
+        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+        body.len(),
+        body
+    )]);
+
+    let order = Client::builder()
+        .api_key("key")
+        .secret_key("secret")
+        .base_url(server.base_url())
+        .build()
+        .expect("client should build")
+        .orders()
+        .create(create_request())
+        .await
+        .expect("orders create request should succeed");
+
+    assert_eq!(order.symbol, "SPY");
+
+    let request = server.into_single_request();
+    assert_eq!(request.request_line, "POST /v2/orders HTTP/1.1");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&request.body).expect("request body must be json"),
+        json!({
+            "symbol": "SPY",
+            "qty": "1",
+            "side": "buy",
+            "type": "limit",
+            "time_in_force": "day",
+            "limit_price": "499.25",
+            "extended_hours": false,
+            "client_order_id": "phase7-orders-create-transport-1",
+            "order_class": "bracket",
+            "take_profit": { "limit_price": "510.00" },
+            "stop_loss": { "stop_price": "492.00", "limit_price": "491.50" },
+            "position_intent": "buy_to_open"
+        })
+    );
+}
+
+#[tokio::test]
+async fn orders_replace_patches_official_body_shape_once() {
+    let body = order_json();
+    let server = TestServer::spawn(vec![format!(
+        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+        body.len(),
+        body
+    )]);
+
+    let order = Client::builder()
+        .api_key("key")
+        .secret_key("secret")
+        .base_url(server.base_url())
+        .build()
+        .expect("client should build")
+        .orders()
+        .replace("order-id-123", replace_request())
+        .await
+        .expect("orders replace request should succeed");
+
+    assert_eq!(order.symbol, "SPY");
+
+    let request = server.into_single_request();
+    assert_eq!(request.request_line, "PATCH /v2/orders/order-id-123 HTTP/1.1");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&request.body).expect("request body must be json"),
+        json!({
+            "qty": "2",
+            "time_in_force": "day",
+            "limit_price": "500.00",
+            "trail": "1.25",
+            "client_order_id": "phase7-orders-replace-transport-1"
+        })
+    );
+}
+
+#[tokio::test]
+async fn orders_cancel_accepts_204_and_sends_no_body() {
+    let server = TestServer::spawn(vec![
+        "HTTP/1.1 204 No Content\r\nconnection: close\r\n\r\n".to_owned(),
+    ]);
+
+    Client::builder()
+        .api_key("key")
+        .secret_key("secret")
+        .base_url(server.base_url())
+        .build()
+        .expect("client should build")
+        .orders()
+        .cancel("order-id-123")
+        .await
+        .expect("orders cancel request should succeed");
+
+    let request = server.into_single_request();
+    assert_eq!(request.request_line, "DELETE /v2/orders/order-id-123 HTTP/1.1");
+    assert!(request.body.is_empty());
+}
+
+#[tokio::test]
+async fn orders_cancel_all_deserializes_batch_body_once() {
+    let body = format!(
+        r#"[{{"id":"904837e3-3b76-47ec-b432-046db621571b","status":200,"body":{}}}]"#,
+        order_json()
+    );
+    let server = TestServer::spawn(vec![format!(
+        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+        body.len(),
+        body
+    )]);
+
+    let results = Client::builder()
+        .api_key("key")
+        .secret_key("secret")
+        .base_url(server.base_url())
+        .build()
+        .expect("client should build")
+        .orders()
+        .cancel_all()
+        .await
+        .expect("orders cancel_all request should succeed");
+
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].status, 200);
+
+    let request = server.into_single_request();
+    assert_eq!(request.request_line, "DELETE /v2/orders HTTP/1.1");
+    assert!(request.body.is_empty());
+}
+
+#[tokio::test]
+async fn orders_write_methods_do_not_retry_non_get_requests() {
+    let create_server = TestServer::spawn(vec![
+        "HTTP/1.1 429 Too Many Requests\r\nx-request-id: req-orders-create-429-1\r\nretry-after: 17\r\ncontent-length: 9\r\nconnection: close\r\n\r\nslow down".to_owned(),
+    ]);
+    let replace_server = TestServer::spawn(vec![
+        "HTTP/1.1 503 Service Unavailable\r\nx-request-id: req-orders-replace-503-1\r\ncontent-length: 15\r\nconnection: close\r\n\r\nservice offline".to_owned(),
+    ]);
+    let cancel_all_server = TestServer::spawn(vec![
+        "HTTP/1.1 503 Service Unavailable\r\nx-request-id: req-orders-cancel-all-503-1\r\ncontent-length: 15\r\nconnection: close\r\n\r\nservice offline".to_owned(),
+    ]);
+
+    let create_error = Client::builder()
+        .api_key("key")
+        .secret_key("secret")
+        .base_url(create_server.base_url())
+        .build()
+        .expect("client should build")
+        .orders()
+        .create(create_request())
+        .await
+        .expect_err("create 429 must fail");
+    let replace_error = Client::builder()
+        .api_key("key")
+        .secret_key("secret")
+        .base_url(replace_server.base_url())
+        .build()
+        .expect("client should build")
+        .orders()
+        .replace("order-id-123", replace_request())
+        .await
+        .expect_err("replace 503 must fail");
+    let cancel_all_error = Client::builder()
+        .api_key("key")
+        .secret_key("secret")
+        .base_url(cancel_all_server.base_url())
+        .build()
+        .expect("client should build")
+        .orders()
+        .cancel_all()
+        .await
+        .expect_err("cancel_all 503 must fail");
+
+    assert!(matches!(create_error, Error::RateLimited(_)));
+    assert!(matches!(replace_error, Error::HttpStatus(_)));
+    assert!(matches!(cancel_all_error, Error::HttpStatus(_)));
+
+    assert_eq!(create_server.into_requests().len(), 1);
+    assert_eq!(replace_server.into_requests().len(), 1);
+    assert_eq!(cancel_all_server.into_requests().len(), 1);
 }

@@ -6,8 +6,8 @@ use alpaca_trade::{
     clock::Clock,
     orders::{
         CancelAllOrderResult, CreateRequest as OrdersCreateRequest, ListRequest as OrdersListRequest,
-        Order, OrderClass, OrderSide, OrderStatus, OrderType, OrdersClient, PositionIntent,
-        QueryOrderStatus, ReplaceRequest as OrdersReplaceRequest, TimeInForce,
+        OptionLegRequest, Order, OrderClass, OrderSide, OrderStatus, OrderType, OrdersClient,
+        PositionIntent, QueryOrderStatus, ReplaceRequest as OrdersReplaceRequest, TimeInForce,
     },
     options_contracts::{
         ContractStatus, ContractStyle, ContractType, DeliverableSettlementMethod,
@@ -73,6 +73,7 @@ fn public_api_exposes_account_assets_calendar_clock_options_contracts_and_orders
     let _ = Clock::default();
     let _ = OrdersCreateRequest::default();
     let _ = OrdersListRequest::default();
+    let _ = OptionLegRequest::default();
     let _ = OrdersReplaceRequest::default();
     let _ = OptionsContractsListRequest::default();
     let _ = OrderClass::Simple;
