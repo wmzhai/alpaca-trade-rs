@@ -164,12 +164,18 @@ async fn options_contracts_list_rejects_whitespace_padded_inputs_before_transpor
         .await
         .expect_err("whitespace-padded list inputs should fail before transport");
 
-    assert_public_invalid_request(error, &["leading or trailing whitespace"]);
+    assert_public_invalid_request(
+        error,
+        &["underlying_symbols", "leading or trailing whitespace"],
+    );
 }
 
 #[tokio::test]
 async fn options_contracts_list_rejects_limit_out_of_range_before_transport() {
-    for limit in [0, 10_001] {
+    for (limit, reason) in [
+        (0, "must be greater than 0"),
+        (10_001, "must be less than or equal to 10000"),
+    ] {
         let error = auth_client()
             .options_contracts()
             .list(ListRequest {
@@ -181,6 +187,6 @@ async fn options_contracts_list_rejects_limit_out_of_range_before_transport() {
             .await
             .expect_err("out-of-range limit should fail before transport");
 
-        assert_public_invalid_request(error, &["limit"]);
+        assert_public_invalid_request(error, &["limit", reason]);
     }
 }
