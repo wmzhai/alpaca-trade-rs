@@ -8,8 +8,8 @@ mod error {
     pub use super::internal_error::*;
 }
 
-use alpaca_trade::{Client, Error};
 use alpaca_trade::options_contracts::{ContractStatus, ListRequest};
+use alpaca_trade::{Client, Error};
 
 fn auth_client() -> Client {
     Client::builder()
@@ -132,10 +132,7 @@ async fn options_contracts_get_rejects_whitespace_padded_symbol_or_id_before_tra
         .await
         .expect_err("whitespace-padded symbol_or_id should fail before transport");
 
-    assert_public_invalid_request(
-        error,
-        &["symbol_or_id", "leading or trailing whitespace"],
-    );
+    assert_public_invalid_request(error, &["symbol_or_id", "leading or trailing whitespace"]);
 }
 
 #[tokio::test]

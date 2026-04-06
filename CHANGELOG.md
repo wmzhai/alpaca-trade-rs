@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0 - 2026-04-06
+
+- Add the Phase 6 `options_contracts` resource family with typed mirror `list` and `get` support.
+- Mirror the current official list query surface, including `show_deliverables`, `page_token`, and `ppind`.
+- Model contract and deliverable numeric fields as `Decimal` while keeping official date/time words as strings.
+- Reuse the shared pagination contract internally without exposing `list_all()` in the first release.
+- Add request, model, transport, public API, request-validation, and live-readonly coverage for `options_contracts`.
+
 ## 0.6.10 - 2026-04-06
 
 - Update the public workspace and crate READMEs to list `options_contracts` as implemented and move the next resource phase to `orders`.

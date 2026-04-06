@@ -1,7 +1,7 @@
 mod support;
 
-use alpaca_trade::options_contracts::{ContractStatus, ListRequest};
 use alpaca_trade::Client;
+use alpaca_trade::options_contracts::{ContractStatus, ListRequest};
 
 #[tokio::test]
 async fn options_contracts_live_lists_and_gets_active_contract() {
