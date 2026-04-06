@@ -8,7 +8,10 @@ mod error {
     pub use super::internal_error::*;
 }
 
-use alpaca_trade::options_contracts::{ContractStatus, ListRequest};
+use alpaca_trade::options_contracts::{ContractStatus, ListRequest as OptionsContractsListRequest};
+use alpaca_trade::orders::{
+    CreateRequest as OrdersCreateRequest, ListRequest as OrdersListRequest,
+};
 use alpaca_trade::{Client, Error};
 
 fn auth_client() -> Client {
@@ -139,9 +142,9 @@ async fn options_contracts_get_rejects_whitespace_padded_symbol_or_id_before_tra
 async fn options_contracts_list_rejects_empty_underlying_symbols_before_transport() {
     let error = auth_client()
         .options_contracts()
-        .list(ListRequest {
+        .list(OptionsContractsListRequest {
             underlying_symbols: Some(Vec::new()),
-            ..ListRequest::default()
+            ..OptionsContractsListRequest::default()
         })
         .await
         .expect_err("empty underlying_symbols should fail before transport");
@@ -153,9 +156,9 @@ async fn options_contracts_list_rejects_empty_underlying_symbols_before_transpor
 async fn options_contracts_list_rejects_blank_underlying_symbol_element_before_transport() {
     let error = auth_client()
         .options_contracts()
-        .list(ListRequest {
+        .list(OptionsContractsListRequest {
             underlying_symbols: Some(vec!["   ".into()]),
-            ..ListRequest::default()
+            ..OptionsContractsListRequest::default()
         })
         .await
         .expect_err("blank underlying_symbols element should fail before transport");
@@ -167,10 +170,10 @@ async fn options_contracts_list_rejects_blank_underlying_symbol_element_before_t
 async fn options_contracts_list_rejects_whitespace_padded_inputs_before_transport() {
     let error = auth_client()
         .options_contracts()
-        .list(ListRequest {
+        .list(OptionsContractsListRequest {
             underlying_symbols: Some(vec![" AAPL ".into()]),
             page_token: Some(" token ".into()),
-            ..ListRequest::default()
+            ..OptionsContractsListRequest::default()
         })
         .await
         .expect_err("whitespace-padded list inputs should fail before transport");
@@ -188,16 +191,88 @@ async fn options_contracts_list_rejects_limit_out_of_range_before_transport() {
         (10_001, "must be less than or equal to 10000"),
     ] {
         let error = auth_client()
-            .options_contracts()
-            .list(ListRequest {
-                underlying_symbols: Some(vec!["SPY".into()]),
-                status: Some(ContractStatus::Active),
-                limit: Some(limit),
-                ..ListRequest::default()
-            })
+        .options_contracts()
+        .list(OptionsContractsListRequest {
+            underlying_symbols: Some(vec!["SPY".into()]),
+            status: Some(ContractStatus::Active),
+            limit: Some(limit),
+            ..OptionsContractsListRequest::default()
+        })
             .await
             .expect_err("out-of-range limit should fail before transport");
 
         assert_public_invalid_request(error, &["limit", reason]);
     }
+}
+
+#[tokio::test]
+async fn orders_get_rejects_blank_order_id_before_transport() {
+    let error = auth_client()
+        .orders()
+        .get("   ")
+        .await
+        .expect_err("blank order_id should fail before transport");
+
+    assert_public_invalid_request(error, &["order_id", "must not be blank"]);
+}
+
+#[tokio::test]
+async fn orders_get_rejects_whitespace_padded_order_id_before_transport() {
+    let error = auth_client()
+        .orders()
+        .get(" order-id ")
+        .await
+        .expect_err("whitespace-padded order_id should fail before transport");
+
+    assert_public_invalid_request(error, &["order_id", "leading or trailing whitespace"]);
+}
+
+#[tokio::test]
+async fn orders_get_by_client_order_id_rejects_blank_identifier_before_transport() {
+    let error = auth_client()
+        .orders()
+        .get_by_client_order_id("   ")
+        .await
+        .expect_err("blank client_order_id should fail before transport");
+
+    assert_public_invalid_request(error, &["client_order_id", "must not be blank"]);
+}
+
+#[tokio::test]
+async fn orders_get_by_client_order_id_rejects_whitespace_padded_identifier_before_transport() {
+    let error = auth_client()
+        .orders()
+        .get_by_client_order_id(" client-order-id ")
+        .await
+        .expect_err("whitespace-padded client_order_id should fail before transport");
+
+    assert_public_invalid_request(error, &["client_order_id", "leading or trailing whitespace"]);
+}
+
+#[tokio::test]
+async fn orders_create_rejects_blank_symbol_before_transport() {
+    let error = auth_client()
+        .orders()
+        .create(OrdersCreateRequest {
+            symbol: Some("   ".into()),
+            ..OrdersCreateRequest::default()
+        })
+        .await
+        .expect_err("blank symbol should fail before transport");
+
+    assert_public_invalid_request(error, &["symbol", "must not be blank"]);
+}
+
+#[tokio::test]
+async fn orders_list_rejects_blank_symbols_element_before_transport() {
+    let error = auth_client()
+        .orders()
+        .list(OrdersListRequest {
+            symbols: Some(vec!["SPY".into(), "   ".into()]),
+            ..OrdersListRequest::default()
+        })
+        .await
+        .expect_err("blank symbols element should fail before transport");
+
+    assert_public_invalid_request(error, &["symbols", "must not be blank"]);
 }

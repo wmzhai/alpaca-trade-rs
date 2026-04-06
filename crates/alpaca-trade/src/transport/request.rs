@@ -24,7 +24,7 @@ impl RequestParts {
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) struct NoContent;
+pub struct NoContent;
 
 #[cfg(test)]
 mod tests {

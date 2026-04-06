@@ -1,0 +1,245 @@
+use std::fmt;
+
+use rust_decimal::Decimal;
+use serde::Serialize;
+
+use crate::common::decimal::string_contract::serialize_option_decimal;
+use crate::common::query::QueryWriter;
+use crate::common::validate::{required_path_segment, required_text, validate_limit};
+use crate::error::Error;
+
+use super::{
+    OrderClass, OrderSide, OrderType, PositionIntent, QueryOrderStatus, SortDirection, StopLoss,
+    TakeProfit, TimeInForce,
+};
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ListRequest {
+    pub status: Option<QueryOrderStatus>,
+    pub limit: Option<u32>,
+    pub after: Option<String>,
+    pub until: Option<String>,
+    pub direction: Option<SortDirection>,
+    pub nested: Option<bool>,
+    pub symbols: Option<Vec<String>>,
+    pub side: Option<OrderSide>,
+    pub asset_class: Option<String>,
+}
+
+impl ListRequest {
+    pub(crate) fn to_query(self) -> Result<Vec<(String, String)>, Error> {
+        let mut query = QueryWriter::default();
+        query.push_opt("status", self.status);
+        query.push_opt(
+            "limit",
+            self.limit
+                .map(|limit| validate_limit(limit, 500))
+                .transpose()?,
+        );
+        query.push_opt("after", validate_optional_text("after", self.after)?);
+        query.push_opt("until", validate_optional_text("until", self.until)?);
+        query.push_opt("direction", self.direction);
+        query.push_opt("nested", self.nested);
+        query.push_csv("symbols", validate_optional_symbols(self.symbols)?);
+        query.push_opt("side", self.side);
+        query.push_opt(
+            "asset_class",
+            validate_optional_text("asset_class", self.asset_class)?,
+        );
+        Ok(query.finish())
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+pub struct CreateRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol: Option<String>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_option_decimal"
+    )]
+    pub qty: Option<Decimal>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_option_decimal"
+    )]
+    pub notional: Option<Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub side: Option<OrderSide>,
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub r#type: Option<OrderType>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time_in_force: Option<TimeInForce>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_option_decimal"
+    )]
+    pub limit_price: Option<Decimal>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_option_decimal"
+    )]
+    pub stop_price: Option<Decimal>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_option_decimal"
+    )]
+    pub trail_price: Option<Decimal>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_option_decimal"
+    )]
+    pub trail_percent: Option<Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extended_hours: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_order_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub order_class: Option<OrderClass>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub take_profit: Option<TakeProfit>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stop_loss: Option<StopLoss>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub legs: Option<Vec<OptionLegRequest>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position_intent: Option<PositionIntent>,
+}
+
+impl CreateRequest {
+    pub(crate) fn to_json(self) -> Result<serde_json::Value, Error> {
+        self.validate()?;
+        serde_json::to_value(self).map_err(|error| Error::InvalidRequest(error.to_string()))
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), Error> {
+        if let Some(symbol) = &self.symbol {
+            required_text("symbol", symbol)?;
+        }
+        if let Some(client_order_id) = &self.client_order_id {
+            required_text("client_order_id", client_order_id)?;
+        }
+        if let Some(legs) = &self.legs {
+            for leg in legs {
+                leg.validate()?;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+pub struct ReplaceRequest {
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_option_decimal"
+    )]
+    pub qty: Option<Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time_in_force: Option<TimeInForce>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_option_decimal"
+    )]
+    pub limit_price: Option<Decimal>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_option_decimal"
+    )]
+    pub stop_price: Option<Decimal>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_option_decimal"
+    )]
+    pub trail: Option<Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_order_id: Option<String>,
+}
+
+impl ReplaceRequest {
+    pub(crate) fn to_json(self) -> Result<serde_json::Value, Error> {
+        self.validate()?;
+        serde_json::to_value(self).map_err(|error| Error::InvalidRequest(error.to_string()))
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), Error> {
+        if let Some(client_order_id) = &self.client_order_id {
+            required_text("client_order_id", client_order_id)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+pub struct OptionLegRequest {
+    pub symbol: String,
+    #[serde(serialize_with = "crate::common::decimal::string_contract::serialize_decimal")]
+    pub ratio_qty: Decimal,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub side: Option<OrderSide>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position_intent: Option<PositionIntent>,
+}
+
+impl OptionLegRequest {
+    fn validate(&self) -> Result<(), Error> {
+        required_text("symbol", &self.symbol)?;
+        Ok(())
+    }
+}
+
+pub(crate) fn validate_order_id(order_id: &str) -> Result<String, Error> {
+    required_path_segment("order_id", order_id)
+}
+
+pub(crate) fn validate_client_order_id(client_order_id: &str) -> Result<String, Error> {
+    required_path_segment("client_order_id", client_order_id)
+}
+
+fn validate_optional_text(
+    name: &'static str,
+    value: Option<String>,
+) -> Result<Option<String>, Error> {
+    value.map(|value| required_text(name, &value)).transpose()
+}
+
+fn validate_optional_symbols(value: Option<Vec<String>>) -> Result<Vec<String>, Error> {
+    match value {
+        None => Ok(Vec::new()),
+        Some(values) if values.is_empty() => Err(Error::InvalidRequest(
+            "symbols must contain at least one symbol".to_owned(),
+        )),
+        Some(values) => values
+            .into_iter()
+            .map(|value| required_text("symbols", &value))
+            .collect(),
+    }
+}
+
+impl fmt::Display for QueryOrderStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            QueryOrderStatus::Open => "open",
+            QueryOrderStatus::Closed => "closed",
+            QueryOrderStatus::All => "all",
+        })
+    }
+}
+
+impl fmt::Display for SortDirection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            SortDirection::Asc => "asc",
+            SortDirection::Desc => "desc",
+        })
+    }
+}
+
+impl fmt::Display for OrderSide {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            OrderSide::Buy => "buy",
+            OrderSide::Sell => "sell",
+        })
+    }
+}

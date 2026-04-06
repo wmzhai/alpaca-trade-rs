@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.2 - 2026-04-06
+
+- Add the public `orders()` entrypoint together with the first typed orders requests, models, enums, and `NoContent` response marker.
+- Mirror the current read-side list query surface and request-validation guardrails for `order_id`, `client_order_id`, `symbol`, and `symbols`.
+- Add local model coverage for single-order, nested-legs, take-profit, stop-loss, and `cancel_all()` batch response shapes.
+
 ## 0.7.1 - 2026-04-06
 
 - Add the Phase 7 orders test-support foundation, including shared `client_order_id` generation and real-vs-mock runtime gating.

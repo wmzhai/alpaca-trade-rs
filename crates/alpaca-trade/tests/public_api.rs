@@ -4,6 +4,11 @@ use alpaca_trade::{
     assets::{Asset, ListRequest as AssetsListRequest},
     calendar::{Calendar, ListRequest as CalendarListRequest},
     clock::Clock,
+    orders::{
+        CancelAllOrderResult, CreateRequest as OrdersCreateRequest, ListRequest as OrdersListRequest,
+        Order, OrderClass, OrderSide, OrderStatus, OrderType, OrdersClient, PositionIntent,
+        QueryOrderStatus, ReplaceRequest as OrdersReplaceRequest, TimeInForce,
+    },
     options_contracts::{
         ContractStatus, ContractStyle, ContractType, DeliverableSettlementMethod,
         DeliverableSettlementType, DeliverableType, ListRequest as OptionsContractsListRequest,
@@ -32,7 +37,7 @@ fn assert_debug_redacts(debug: &str) {
 }
 
 #[test]
-fn public_api_exposes_account_assets_calendar_clock_and_options_contracts_types_and_accessors() {
+fn public_api_exposes_account_assets_calendar_clock_options_contracts_and_orders_types_and_accessors() {
     let client = Client::builder()
         .api_key(API_KEY_SENTINEL)
         .secret_key(SECRET_KEY_SENTINEL)
@@ -43,6 +48,7 @@ fn public_api_exposes_account_assets_calendar_clock_and_options_contracts_types_
     let _ = client.assets();
     let _ = client.calendar();
     let _ = client.clock();
+    let _ = client.orders();
     let _ = client.options_contracts();
     let account = Account::default();
     let _: Option<Decimal> = account.cash.clone();
@@ -51,7 +57,10 @@ fn public_api_exposes_account_assets_calendar_clock_and_options_contracts_types_
     let _: fn(Asset) -> Option<Decimal> = |asset| asset.margin_requirement_long.clone();
     let _: fn(Asset) -> Option<Decimal> = |asset| asset.margin_requirement_short.clone();
     let _: Option<Asset> = None;
+    let _: Option<CancelAllOrderResult> = None;
     let _: Option<ListResponse> = None;
+    let _: Option<Order> = None;
+    let _: Option<OrdersClient> = None;
     let _: Option<OptionContract> = None;
     let _: Option<OptionDeliverable> = None;
     let _: fn(ListResponse) -> Option<String> = |response| response.next_page_token;
@@ -62,7 +71,17 @@ fn public_api_exposes_account_assets_calendar_clock_and_options_contracts_types_
     let _ = Calendar::default();
     let _ = CalendarListRequest::default();
     let _ = Clock::default();
+    let _ = OrdersCreateRequest::default();
+    let _ = OrdersListRequest::default();
+    let _ = OrdersReplaceRequest::default();
     let _ = OptionsContractsListRequest::default();
+    let _ = OrderClass::Simple;
+    let _ = OrderSide::Buy;
+    let _ = OrderStatus::Accepted;
+    let _ = OrderType::Market;
+    let _ = PositionIntent::BuyToOpen;
+    let _ = QueryOrderStatus::Open;
+    let _ = TimeInForce::Day;
     let _ = ContractStatus::Active;
     let _ = ContractType::Call;
     let _ = ContractStyle::American;
@@ -100,6 +119,19 @@ fn options_contracts_client_debug_does_not_expose_credentials() {
         .expect("client should build");
 
     let debug = format!("{:?}", client.options_contracts());
+
+    assert_debug_redacts(&debug);
+}
+
+#[test]
+fn orders_client_debug_does_not_expose_credentials() {
+    let client = Client::builder()
+        .api_key(API_KEY_SENTINEL)
+        .secret_key(SECRET_KEY_SENTINEL)
+        .build()
+        .expect("client should build");
+
+    let debug = format!("{:?}", client.orders());
 
     assert_debug_redacts(&debug);
 }
