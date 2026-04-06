@@ -16,10 +16,12 @@ Internal workspace helper for market-hours-sensitive Trading API tests in this w
 ## Orders Behavior
 
 - State is in-memory only; restarting the server clears all stored orders.
-- `market` orders fill immediately.
-- `limit` buys fill only when `limit_price >= ask`; `limit` sells fill only when `limit_price <= bid`.
+- Order creation and replacement resolve live market data through `alpaca-data`; if live quotes or option snapshots are unavailable, the request fails instead of inventing fallback prices.
+- Single-leg `market` orders fill immediately at the current bid/ask midpoint.
+- Single-leg `limit` buys fill when `limit_price >= midpoint`; single-leg `limit` sells fill when `limit_price <= midpoint`.
+- Multi-leg option orders compute a net combo midpoint from the live midpoint of each leg and use that combo midpoint for the same marketable-vs-open decision.
 - Non-marketable limit orders remain open until `cancel`, `replace`, or `cancel_all`.
-- Route tests use fixed in-process market data, while workspace integration tests may seed the mock from `alpaca-data` before startup.
+- Route tests and workspace integration tests both depend on live `alpaca-data` quotes and `optionchain` discovery; missing market data is treated as a test failure.
 
 ## Usage
 

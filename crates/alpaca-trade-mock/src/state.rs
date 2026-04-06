@@ -51,13 +51,9 @@ pub struct OrdersMarketSnapshot {
 
 impl Default for OrdersMarketSnapshot {
     fn default() -> Self {
-        let mut instruments = HashMap::new();
-        instruments.insert(
-            DEFAULT_STOCK_SYMBOL.to_owned(),
-            InstrumentSnapshot::equity(Decimal::new(50000, 2), Decimal::new(50025, 2)),
-        );
-
-        Self { instruments }
+        Self {
+            instruments: HashMap::new(),
+        }
     }
 }
 
@@ -71,11 +67,8 @@ impl OrdersMarketSnapshot {
         self
     }
 
-    pub fn instrument(&self, symbol: &str) -> InstrumentSnapshot {
-        self.instruments
-            .get(symbol)
-            .cloned()
-            .unwrap_or_else(|| default_instrument_for(symbol))
+    pub fn instrument(&self, symbol: &str) -> Option<InstrumentSnapshot> {
+        self.instruments.get(symbol).cloned()
     }
 
     pub fn default_option_symbol(&self) -> Option<&str> {
@@ -151,6 +144,7 @@ pub struct ListOrdersFilter {
 pub enum OrdersStateError {
     NotFound(String),
     Conflict(String),
+    MarketDataUnavailable(String),
 }
 
 impl OrdersState {
@@ -193,7 +187,7 @@ impl OrdersState {
                 input.symbol.as_deref(),
                 input.legs.as_deref(),
             ))
-            .await;
+            .await?;
         let now = now_string();
         let order_id = Uuid::new_v4().to_string();
         let legs = if order_class == OrderClass::Mleg {
@@ -220,7 +214,11 @@ impl OrdersState {
             market_quotes
                 .get(&symbol)
                 .cloned()
-                .unwrap_or_else(|| default_instrument_for(&symbol))
+                .ok_or_else(|| {
+                    OrdersStateError::MarketDataUnavailable(format!(
+                        "mock order creation for {symbol} requires live market data"
+                    ))
+                })?
                 .asset_class
         };
         let effective_asset_id = if order_class == OrderClass::Mleg {
@@ -402,7 +400,7 @@ impl OrdersState {
                     Some(leg_requests.as_slice())
                 },
             ))
-            .await;
+            .await?;
         let replacement_legs = if current.order.order_class == OrderClass::Mleg {
             Some(build_leg_orders_from_requests(
                 &leg_requests,
@@ -521,52 +519,61 @@ impl OrdersState {
     async fn resolve_market_quotes(
         &self,
         symbols: &[String],
-    ) -> HashMap<String, InstrumentSnapshot> {
+    ) -> Result<HashMap<String, InstrumentSnapshot>, OrdersStateError> {
         let mut quotes = HashMap::new();
 
-        if let Some(data_client) = self.data_client.as_ref() {
-            let stock_symbols = symbols
-                .iter()
-                .filter(|symbol| !looks_like_option_symbol(symbol))
-                .cloned()
-                .collect::<Vec<_>>();
-            for symbol in stock_symbols {
-                if let Ok(snapshot) = live_stock_snapshot(data_client, &symbol).await {
-                    quotes.insert(symbol, snapshot);
-                }
-            }
+        let data_client = self.data_client.as_ref().ok_or_else(|| {
+            OrdersStateError::MarketDataUnavailable(
+                "mock orders require live market data credentials via alpaca-data".to_owned(),
+            )
+        })?;
 
-            let option_symbols = symbols
-                .iter()
-                .filter(|symbol| looks_like_option_symbol(symbol))
-                .cloned()
-                .collect::<Vec<_>>();
-            if !option_symbols.is_empty() {
-                if let Ok(response) = data_client
-                    .options()
-                    .snapshots(SnapshotsRequest {
-                        symbols: option_symbols.clone(),
-                        ..SnapshotsRequest::default()
-                    })
-                    .await
-                {
-                    for (symbol, snapshot) in response.snapshots {
-                        if let Some(instrument) = live_option_snapshot(&snapshot) {
-                            quotes.insert(symbol, instrument);
-                        }
-                    }
-                }
+        let stock_symbols = symbols
+            .iter()
+            .filter(|symbol| !looks_like_option_symbol(symbol))
+            .cloned()
+            .collect::<Vec<_>>();
+        for symbol in stock_symbols {
+            let snapshot = live_stock_snapshot(data_client, &symbol)
+                .await
+                .map_err(|message| OrdersStateError::MarketDataUnavailable(message.clone()))?;
+            quotes.insert(symbol, snapshot);
+        }
+
+        let option_symbols = symbols
+            .iter()
+            .filter(|symbol| looks_like_option_symbol(symbol))
+            .cloned()
+            .collect::<Vec<_>>();
+        if !option_symbols.is_empty() {
+            let response = data_client
+                .options()
+                .snapshots(SnapshotsRequest {
+                    symbols: option_symbols.clone(),
+                    ..SnapshotsRequest::default()
+                })
+                .await
+                .map_err(|error| {
+                    OrdersStateError::MarketDataUnavailable(format!(
+                        "options snapshots request failed: {error}"
+                    ))
+                })?;
+            for symbol in option_symbols {
+                let snapshot = response.snapshots.get(&symbol).ok_or_else(|| {
+                    OrdersStateError::MarketDataUnavailable(format!(
+                        "options snapshots response did not include {symbol}"
+                    ))
+                })?;
+                let instrument = live_option_snapshot(snapshot).ok_or_else(|| {
+                    OrdersStateError::MarketDataUnavailable(format!(
+                        "options snapshot for {symbol} is missing a usable live bid/ask"
+                    ))
+                })?;
+                quotes.insert(symbol, instrument);
             }
         }
 
-        let fallback = self.inner.read().market_snapshot.clone();
-        for symbol in symbols {
-            quotes
-                .entry(symbol.clone())
-                .or_insert_with(|| fallback.instrument(symbol));
-        }
-
-        quotes
+        Ok(quotes)
     }
 }
 
@@ -827,7 +834,7 @@ fn mid_price(bid: Decimal, ask: Decimal) -> Decimal {
 async fn live_stock_snapshot(
     data_client: &DataClient,
     symbol: &str,
-) -> Result<InstrumentSnapshot, ()> {
+) -> Result<InstrumentSnapshot, String> {
     let quote = data_client
         .stocks()
         .latest_quote(LatestQuoteRequest {
@@ -835,18 +842,20 @@ async fn live_stock_snapshot(
             ..LatestQuoteRequest::default()
         })
         .await
-        .map_err(|_| ())?;
+        .map_err(|error| format!("latest stock quote request failed for {symbol}: {error}"))?;
     let bid = quote
         .quote
         .bp
         .and_then(decimal_from_market_data)
-        .ok_or(())?;
+        .ok_or_else(|| format!("latest stock quote for {symbol} is missing bid price"))?;
     let ask = quote
         .quote
         .ap
         .or(quote.quote.bp)
         .and_then(decimal_from_market_data)
-        .ok_or(())?;
+        .ok_or_else(|| {
+            format!("latest stock quote for {symbol} is missing both ask and bid prices")
+        })?;
     Ok(InstrumentSnapshot::equity(bid, ask))
 }
 
@@ -876,14 +885,6 @@ fn live_option_snapshot(snapshot: &OptionSnapshot) -> Option<InstrumentSnapshot>
         })
         .or(latest_trade_price)?;
     Some(InstrumentSnapshot::option(bid, ask))
-}
-
-fn default_instrument_for(symbol: &str) -> InstrumentSnapshot {
-    if looks_like_option_symbol(symbol) {
-        return InstrumentSnapshot::option(Decimal::new(110, 2), Decimal::new(125, 2));
-    }
-
-    InstrumentSnapshot::equity(Decimal::new(50000, 2), Decimal::new(50025, 2))
 }
 
 fn looks_like_option_symbol(symbol: &str) -> bool {
@@ -1059,6 +1060,9 @@ fn build_cancel_all_result(id: String, status: u16, body: Option<Order>) -> Canc
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::sync::Mutex;
+
+    static LIVE_MARKET_DATA_TEST_MUTEX: Mutex<()> = Mutex::const_new(());
 
     fn test_state(market_snapshot: OrdersMarketSnapshot) -> OrdersState {
         OrdersState {
@@ -1071,103 +1075,322 @@ mod tests {
         }
     }
 
+    fn live_test_data_client() -> DataClient {
+        data_client_from_environment()
+            .expect("mock market-data-dependent tests require Alpaca credentials for alpaca-data")
+    }
+
+    async fn live_stock_mid(symbol: &str) -> Decimal {
+        let snapshot = live_stock_snapshot(&live_test_data_client(), symbol)
+            .await
+            .expect("latest live stock quote should be available for mock midpoint tests");
+        mid_price(snapshot.bid, snapshot.ask)
+    }
+
+    #[derive(Debug, Clone)]
+    struct LiveOptionQuote {
+        symbol: String,
+        expiration_date: String,
+        strike_price: Decimal,
+        bid: Decimal,
+        ask: Decimal,
+    }
+
+    #[derive(Debug, Clone)]
+    struct LiveCallSpread {
+        buy_symbol: String,
+        sell_symbol: String,
+        buy_mid: Decimal,
+        sell_mid: Decimal,
+    }
+
+    fn parse_option_symbol_for_test(symbol: &str) -> Option<(String, Decimal)> {
+        let root_len = symbol.len().checked_sub(15)?;
+        let expiration_date = symbol.get(root_len..root_len + 6)?.to_owned();
+        if symbol.get(root_len + 6..root_len + 7)? != "C" {
+            return None;
+        }
+        let strike = symbol.get(root_len + 7..)?;
+        let strike_price = Decimal::from_str(strike).ok()? / Decimal::new(1000, 0);
+        Some((expiration_date, strike_price))
+    }
+
+    fn live_option_quote(symbol: String, snapshot: OptionSnapshot) -> Option<LiveOptionQuote> {
+        let (expiration_date, strike_price) = parse_option_symbol_for_test(&symbol)?;
+        let latest_trade_price = snapshot
+            .latestTrade
+            .as_ref()
+            .and_then(|trade| trade.p)
+            .and_then(decimal_from_market_data);
+        let bid = snapshot
+            .latestQuote
+            .as_ref()
+            .and_then(|quote| quote.bp)
+            .and_then(decimal_from_market_data)
+            .or(latest_trade_price)?;
+        let ask = snapshot
+            .latestQuote
+            .as_ref()
+            .and_then(|quote| quote.ap)
+            .and_then(decimal_from_market_data)
+            .or_else(|| {
+                snapshot
+                    .latestQuote
+                    .as_ref()
+                    .and_then(|quote| quote.bp)
+                    .and_then(decimal_from_market_data)
+            })
+            .or(latest_trade_price)?;
+        if bid <= Decimal::ZERO || ask <= Decimal::ZERO || ask < bid {
+            return None;
+        }
+        Some(LiveOptionQuote {
+            symbol,
+            expiration_date,
+            strike_price,
+            bid,
+            ask,
+        })
+    }
+
+    async fn live_call_spread() -> LiveCallSpread {
+        let data_client = live_test_data_client();
+        let today = Utc::now().date_naive();
+        let latest_expiration = today
+            .checked_add_days(chrono::Days::new(21))
+            .expect("option lookahead window should be valid");
+        let response = data_client
+            .options()
+            .chain_all(alpaca_data::options::ChainRequest {
+                underlying_symbol: DEFAULT_STOCK_SYMBOL.to_owned(),
+                expiration_date_gte: Some(today.to_string()),
+                expiration_date_lte: Some(latest_expiration.to_string()),
+                limit: Some(1_000),
+                ..alpaca_data::options::ChainRequest::default()
+            })
+            .await
+            .expect("optionchain request should succeed for mock midpoint tests");
+
+        let mut quotes = response
+            .snapshots
+            .into_iter()
+            .filter_map(|(symbol, snapshot)| live_option_quote(symbol, snapshot))
+            .collect::<Vec<_>>();
+        quotes.sort_by(|left, right| {
+            left.expiration_date
+                .cmp(&right.expiration_date)
+                .then_with(|| left.strike_price.cmp(&right.strike_price))
+        });
+
+        for (index, lower) in quotes.iter().enumerate() {
+            for higher in quotes.iter().skip(index + 1) {
+                if higher.expiration_date != lower.expiration_date
+                    || higher.strike_price <= lower.strike_price
+                {
+                    continue;
+                }
+
+                let buy_mid = mid_price(lower.bid, lower.ask);
+                let sell_mid = mid_price(higher.bid, higher.ask);
+                if buy_mid <= sell_mid {
+                    continue;
+                }
+
+                return LiveCallSpread {
+                    buy_symbol: lower.symbol.clone(),
+                    sell_symbol: higher.symbol.clone(),
+                    buy_mid,
+                    sell_mid,
+                };
+            }
+        }
+
+        panic!("optionchain did not return a quoted call spread with positive net debit");
+    }
+
     #[tokio::test]
     async fn stock_buy_limit_uses_midpoint_as_fill_threshold() {
-        let state = test_state(OrdersMarketSnapshot::default().with_instrument(
-            "SPY",
-            InstrumentSnapshot::equity(Decimal::new(50000, 2), Decimal::new(50020, 2)),
-        ));
+        let _guard = LIVE_MARKET_DATA_TEST_MUTEX.lock().await;
+        let stock_mid = live_stock_mid(DEFAULT_STOCK_SYMBOL).await;
+        let below_mid = (stock_mid - Decimal::new(1, 2)).round_dp(2);
+        let at_mid = stock_mid.round_dp(2);
+        let instrument = InstrumentSnapshot::equity(stock_mid, stock_mid);
+        let market_quotes = HashMap::from([(DEFAULT_STOCK_SYMBOL.to_owned(), instrument)]);
 
-        let accepted = state
-            .create_order(CreateOrderInput {
-                symbol: Some("SPY".to_owned()),
-                qty: Some(Decimal::new(1, 0)),
-                side: Some(OrderSide::Buy),
-                order_type: Some(OrderType::Limit),
-                time_in_force: Some(TimeInForce::Day),
-                limit_price: Some(Decimal::new(50009, 2)),
-                ..CreateOrderInput::default()
-            })
-            .await
-            .expect("below-mid buy limit should remain open");
+        let now = now_string();
+        let mut accepted = build_order(NewOrderSpec {
+            id: Uuid::new_v4().to_string(),
+            client_order_id: Uuid::new_v4().to_string(),
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            submitted_at: now.clone(),
+            expires_at: expires_at_for(TimeInForce::Day),
+            asset_id: Uuid::new_v4().to_string(),
+            symbol: DEFAULT_STOCK_SYMBOL.to_owned(),
+            asset_class: "us_equity".to_owned(),
+            notional: None,
+            qty: Some(Decimal::new(1, 0)),
+            order_class: OrderClass::Simple,
+            order_type: OrderType::Limit,
+            side: OrderSide::Buy,
+            position_intent: None,
+            time_in_force: TimeInForce::Day,
+            limit_price: Some(below_mid),
+            stop_price: None,
+            extended_hours: false,
+            trail_percent: None,
+            trail_price: None,
+            ratio_qty: None,
+            legs: None,
+            replaces: None,
+            take_profit: None,
+            stop_loss: None,
+        });
+        apply_fill_rules(&mut accepted, &OrderSide::Buy, &market_quotes);
         assert_eq!(accepted.status, OrderStatus::Accepted);
 
-        let filled = state
-            .create_order(CreateOrderInput {
-                symbol: Some("SPY".to_owned()),
-                qty: Some(Decimal::new(1, 0)),
-                side: Some(OrderSide::Buy),
-                order_type: Some(OrderType::Limit),
-                time_in_force: Some(TimeInForce::Day),
-                limit_price: Some(Decimal::new(50010, 2)),
-                ..CreateOrderInput::default()
-            })
-            .await
-            .expect("at-mid buy limit should fill");
+        let mut filled = build_order(NewOrderSpec {
+            id: Uuid::new_v4().to_string(),
+            client_order_id: Uuid::new_v4().to_string(),
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            submitted_at: now,
+            expires_at: expires_at_for(TimeInForce::Day),
+            asset_id: Uuid::new_v4().to_string(),
+            symbol: DEFAULT_STOCK_SYMBOL.to_owned(),
+            asset_class: "us_equity".to_owned(),
+            notional: None,
+            qty: Some(Decimal::new(1, 0)),
+            order_class: OrderClass::Simple,
+            order_type: OrderType::Limit,
+            side: OrderSide::Buy,
+            position_intent: None,
+            time_in_force: TimeInForce::Day,
+            limit_price: Some(at_mid),
+            stop_price: None,
+            extended_hours: false,
+            trail_percent: None,
+            trail_price: None,
+            ratio_qty: None,
+            legs: None,
+            replaces: None,
+            take_profit: None,
+            stop_loss: None,
+        });
+        apply_fill_rules(&mut filled, &OrderSide::Buy, &market_quotes);
         assert_eq!(filled.status, OrderStatus::Filled);
-        assert_eq!(filled.filled_avg_price, Some(Decimal::new(50010, 2)));
+        assert_eq!(filled.filled_avg_price, Some(at_mid));
     }
 
     #[tokio::test]
     async fn mleg_limit_uses_combo_midpoint_for_fill_decision() {
-        let buy_leg = "SPY260417C00550000";
-        let sell_leg = "SPY260417C00555000";
-        let state = test_state(
-            OrdersMarketSnapshot::default()
-                .with_instrument(
-                    buy_leg,
-                    InstrumentSnapshot::option(Decimal::new(120, 2), Decimal::new(130, 2)),
-                )
-                .with_instrument(
-                    sell_leg,
-                    InstrumentSnapshot::option(Decimal::new(40, 2), Decimal::new(50, 2)),
-                ),
-        );
+        let _guard = LIVE_MARKET_DATA_TEST_MUTEX.lock().await;
+        let spread = live_call_spread().await;
+        let combo_mid = (spread.buy_mid - spread.sell_mid).round_dp(2);
+        let below_combo_mid = (combo_mid - Decimal::new(1, 2)).round_dp(2);
         let legs = vec![
             OptionLegRequest {
-                symbol: buy_leg.to_owned(),
+                symbol: spread.buy_symbol.clone(),
                 ratio_qty: 1,
                 side: Some(OrderSide::Buy),
                 position_intent: Some(PositionIntent::BuyToOpen),
             },
             OptionLegRequest {
-                symbol: sell_leg.to_owned(),
+                symbol: spread.sell_symbol.clone(),
                 ratio_qty: 1,
                 side: Some(OrderSide::Sell),
                 position_intent: Some(PositionIntent::SellToOpen),
             },
         ];
-
-        let accepted = state
-            .create_order(CreateOrderInput {
-                qty: Some(Decimal::new(1, 0)),
-                side: Some(OrderSide::Buy),
-                order_type: Some(OrderType::Limit),
-                time_in_force: Some(TimeInForce::Day),
-                limit_price: Some(Decimal::new(79, 2)),
-                order_class: Some(OrderClass::Mleg),
-                legs: Some(legs.clone()),
-                ..CreateOrderInput::default()
-            })
-            .await
-            .expect("below combo mid should remain open");
+        let market_quotes = HashMap::from([
+            (
+                spread.buy_symbol.clone(),
+                InstrumentSnapshot::option(spread.buy_mid, spread.buy_mid),
+            ),
+            (
+                spread.sell_symbol.clone(),
+                InstrumentSnapshot::option(spread.sell_mid, spread.sell_mid),
+            ),
+        ]);
+        let now = now_string();
+        let accepted_legs = build_leg_orders_from_requests(
+            &legs,
+            Some(Decimal::new(1, 0)),
+            OrderType::Limit,
+            TimeInForce::Day,
+            &now,
+            None,
+        );
+        let mut accepted = build_order(NewOrderSpec {
+            id: Uuid::new_v4().to_string(),
+            client_order_id: Uuid::new_v4().to_string(),
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            submitted_at: now.clone(),
+            expires_at: expires_at_for(TimeInForce::Day),
+            asset_id: Uuid::new_v4().to_string(),
+            symbol: String::new(),
+            asset_class: String::new(),
+            notional: None,
+            qty: Some(Decimal::new(1, 0)),
+            order_class: OrderClass::Mleg,
+            order_type: OrderType::Limit,
+            side: OrderSide::Buy,
+            position_intent: None,
+            time_in_force: TimeInForce::Day,
+            limit_price: Some(below_combo_mid),
+            stop_price: None,
+            extended_hours: false,
+            trail_percent: None,
+            trail_price: None,
+            ratio_qty: None,
+            legs: Some(accepted_legs),
+            replaces: None,
+            take_profit: None,
+            stop_loss: None,
+        });
+        apply_fill_rules(&mut accepted, &OrderSide::Buy, &market_quotes);
         assert_eq!(accepted.status, OrderStatus::Accepted);
 
-        let filled = state
-            .create_order(CreateOrderInput {
-                qty: Some(Decimal::new(1, 0)),
-                side: Some(OrderSide::Buy),
-                order_type: Some(OrderType::Limit),
-                time_in_force: Some(TimeInForce::Day),
-                limit_price: Some(Decimal::new(80, 2)),
-                order_class: Some(OrderClass::Mleg),
-                legs: Some(legs),
-                ..CreateOrderInput::default()
-            })
-            .await
-            .expect("at combo mid should fill");
+        let filled_legs = build_leg_orders_from_requests(
+            &legs,
+            Some(Decimal::new(1, 0)),
+            OrderType::Limit,
+            TimeInForce::Day,
+            &now,
+            None,
+        );
+        let mut filled = build_order(NewOrderSpec {
+            id: Uuid::new_v4().to_string(),
+            client_order_id: Uuid::new_v4().to_string(),
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            submitted_at: now,
+            expires_at: expires_at_for(TimeInForce::Day),
+            asset_id: Uuid::new_v4().to_string(),
+            symbol: String::new(),
+            asset_class: String::new(),
+            notional: None,
+            qty: Some(Decimal::new(1, 0)),
+            order_class: OrderClass::Mleg,
+            order_type: OrderType::Limit,
+            side: OrderSide::Buy,
+            position_intent: None,
+            time_in_force: TimeInForce::Day,
+            limit_price: Some(combo_mid),
+            stop_price: None,
+            extended_hours: false,
+            trail_percent: None,
+            trail_price: None,
+            ratio_qty: None,
+            legs: Some(filled_legs),
+            replaces: None,
+            take_profit: None,
+            stop_loss: None,
+        });
+        apply_fill_rules(&mut filled, &OrderSide::Buy, &market_quotes);
         assert_eq!(filled.status, OrderStatus::Filled);
-        assert_eq!(filled.filled_avg_price, Some(Decimal::new(80, 2)));
+        assert_eq!(filled.filled_avg_price, Some(combo_mid));
         let filled_legs = filled.legs.expect("filled mleg should include child legs");
         assert_eq!(filled_legs.len(), 2);
         assert!(
@@ -1175,7 +1398,26 @@ mod tests {
                 .iter()
                 .all(|leg| leg.status == OrderStatus::Filled)
         );
-        assert_eq!(filled_legs[0].filled_avg_price, Some(Decimal::new(125, 2)));
-        assert_eq!(filled_legs[1].filled_avg_price, Some(Decimal::new(45, 2)));
+        assert_eq!(filled_legs[0].filled_avg_price, Some(spread.buy_mid));
+        assert_eq!(filled_legs[1].filled_avg_price, Some(spread.sell_mid));
+    }
+
+    #[tokio::test]
+    async fn create_order_fails_without_live_market_data() {
+        let state = test_state(OrdersMarketSnapshot::default());
+
+        let error = state
+            .create_order(CreateOrderInput {
+                symbol: Some("SPY".to_owned()),
+                qty: Some(Decimal::new(1, 0)),
+                side: Some(OrderSide::Buy),
+                order_type: Some(OrderType::Market),
+                time_in_force: Some(TimeInForce::Day),
+                ..CreateOrderInput::default()
+            })
+            .await
+            .expect_err("mock orders must fail when live market data is unavailable");
+
+        assert!(matches!(error, OrdersStateError::MarketDataUnavailable(_)));
     }
 }

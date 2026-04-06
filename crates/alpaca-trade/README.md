@@ -83,4 +83,5 @@ cargo run -p alpaca-trade --example assets_list
 - `orders_mutating` uses the shared `orders()` public API against dedicated Paper trading when `ALPACA_TRADE_ORDERS_TEST_ACCOUNT=1` is set during market hours.
 - The dedicated Paper path dynamically discovers real single-leg and multi-leg option contracts through `alpaca-data`, including call spreads, put spreads, and iron condors.
 - When that dedicated Paper path is unavailable, the same mutating flow falls back to the internal `alpaca-trade-mock` stateful orders server.
+- Both the dedicated Paper path and the mock fallback require live `alpaca-data` quotes and `optionchain` discovery; missing live market data fails the run instead of falling back to seeded snapshots.
 - The test support accepts both the standard `APCA_*` credential names and the repo-local `ALPACA_TRADE_*` aliases.

@@ -38,6 +38,13 @@ impl MockHttpError {
             message: message.into(),
         }
     }
+
+    fn internal(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: message.into(),
+        }
+    }
 }
 
 impl IntoResponse for MockHttpError {
@@ -58,6 +65,7 @@ impl From<OrdersStateError> for MockHttpError {
         match error {
             OrdersStateError::NotFound(message) => Self::not_found(message),
             OrdersStateError::Conflict(message) => Self::conflict(message),
+            OrdersStateError::MarketDataUnavailable(message) => Self::internal(message),
         }
     }
 }

@@ -13,9 +13,7 @@ use alpaca_trade::options_contracts::{
 };
 use alpaca_trade::orders::{OptionLegRequest, Order, OrderSide, OrderStatus, PositionIntent};
 use alpaca_trade::{Decimal, Error};
-use alpaca_trade_mock::{
-    InstrumentSnapshot, OrdersMarketSnapshot, spawn_test_server_with_market_snapshot,
-};
+use alpaca_trade_mock::OrdersMarketSnapshot;
 use chrono::{Days, Utc};
 use tokio::sync::{Mutex, MutexGuard};
 use tokio::time::sleep;
@@ -49,7 +47,7 @@ pub(crate) struct OrdersTestContext {
     pub(crate) trade_client: Client,
     pub(crate) data_client: Option<DataClient>,
     pub(crate) market_snapshot: Option<OrdersMarketSnapshot>,
-    mock_server: Option<alpaca_trade_mock::TestServer>,
+    pub(crate) mock_server: Option<alpaca_trade_mock::TestServer>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -191,37 +189,33 @@ pub(crate) fn data_client_from_trade_credentials(credentials: &Credentials) -> a
 }
 
 pub(crate) async fn orders_test_context() -> OrdersTestContext {
-    if let Some(credentials) = super::trade_credentials() {
-        let trade_client = Client::builder()
-            .api_key(credentials.api_key.clone())
-            .secret_key(credentials.secret_key.clone())
-            .paper()
-            .build()
-            .expect("paper trade client should build");
-        let data_client = data_client_from_trade_credentials(&credentials);
-        let runtime_mode = detect_orders_runtime_mode(&trade_client).await;
+    let credentials = super::trade_credentials().expect(
+        "orders Paper/mock tests require Alpaca credentials because both paths depend on live market data",
+    );
+    let trade_client = Client::builder()
+        .api_key(credentials.api_key.clone())
+        .secret_key(credentials.secret_key.clone())
+        .paper()
+        .build()
+        .expect("paper trade client should build");
+    let data_client = data_client_from_trade_credentials(&credentials);
+    let runtime_mode = detect_orders_runtime_mode(&trade_client).await;
 
-        if runtime_mode == OrdersRuntimeMode::Paper {
-            return OrdersTestContext {
-                runtime_mode,
-                trade_client,
-                data_client: Some(data_client),
-                market_snapshot: None,
-                mock_server: None,
-            };
-        }
-
-        eprintln!(
-            "orders mutating tests: runtime mode resolved to Mock; using alpaca-trade-mock fallback because dedicated Paper mutating coverage is unavailable without {}=1 during market hours",
-            DEDICATED_ORDERS_TEST_ACCOUNT_ENV,
-        );
-        return build_mock_test_context(Some(&data_client)).await;
+    if runtime_mode == OrdersRuntimeMode::Paper {
+        return OrdersTestContext {
+            runtime_mode,
+            trade_client,
+            data_client: Some(data_client),
+            market_snapshot: None,
+            mock_server: None,
+        };
     }
 
     eprintln!(
-        "orders mutating tests: credentials unavailable; using alpaca-trade-mock fallback runtime"
+        "orders mutating tests: runtime mode resolved to Mock; using alpaca-trade-mock fallback because dedicated Paper mutating coverage is unavailable without {}=1 during market hours",
+        DEDICATED_ORDERS_TEST_ACCOUNT_ENV,
     );
-    build_mock_test_context(None).await
+    build_mock_test_context(&data_client).await
 }
 
 pub(crate) async fn detect_orders_runtime_mode(client: &Client) -> OrdersRuntimeMode {
@@ -267,20 +261,17 @@ pub(crate) async fn stock_price_context(
     context: &OrdersTestContext,
     symbol: &str,
 ) -> Result<StockPriceContext, String> {
-    let ask = match context.runtime_mode {
-        OrdersRuntimeMode::Paper => {
-            let data_client = context
-                .data_client
-                .as_ref()
-                .ok_or_else(|| "paper context is missing data client".to_owned())?;
-            latest_stock_ask(data_client, symbol).await?
-        }
-        OrdersRuntimeMode::Mock => context
-            .market_snapshot
-            .as_ref()
-            .map(|snapshot| snapshot.instrument(symbol).ask)
-            .ok_or_else(|| "mock context is missing market snapshot".to_owned())?,
-    };
+    let data_client = context
+        .data_client
+        .as_ref()
+        .ok_or_else(|| match context.runtime_mode {
+            OrdersRuntimeMode::Paper => "paper context is missing data client".to_owned(),
+            OrdersRuntimeMode::Mock => {
+                "mock runtime requires alpaca-data because seeded snapshots are forbidden"
+                    .to_owned()
+            }
+        })?;
+    let ask = latest_stock_ask(data_client, symbol).await?;
 
     Ok(stock_price_context_from_ask(ask))
 }
@@ -289,29 +280,19 @@ pub(crate) async fn discover_option_contract(
     context: &OrdersTestContext,
     underlying_symbol: &str,
 ) -> Result<OptionContractContext, String> {
-    if let Some(data_client) = context.data_client.as_ref() {
-        let universe = load_cached_option_universe(data_client, underlying_symbol).await?;
-        return best_option_candidate_from_quotes(&universe.quoted_contracts).ok_or_else(|| {
-            format!("no quoted option contract snapshot was available for {underlying_symbol}")
-        });
-    }
-
-    let snapshot = context
-        .market_snapshot
+    let data_client = context
+        .data_client
         .as_ref()
-        .ok_or_else(|| "mock context is missing market snapshot".to_owned())?;
-    let symbol = snapshot
-        .default_option_symbol()
-        .ok_or_else(|| "mock context is missing dynamically discovered option symbols".to_owned())?
-        .to_owned();
-    Ok(OptionContractContext {
-        symbol: symbol.clone(),
-        non_marketable_buy_limit_price: conservative_price_below_market(
-            snapshot.instrument(&symbol).ask,
-        ),
-        more_conservative_buy_limit_price: conservative_price_below_market(
-            conservative_price_below_market(snapshot.instrument(&symbol).ask),
-        ),
+        .ok_or_else(|| match context.runtime_mode {
+            OrdersRuntimeMode::Paper => "paper context is missing data client".to_owned(),
+            OrdersRuntimeMode::Mock => {
+                "mock runtime requires alpaca-data because seeded snapshots are forbidden"
+                    .to_owned()
+            }
+        })?;
+    let universe = load_cached_option_universe(data_client, underlying_symbol).await?;
+    best_option_candidate_from_quotes(&universe.quoted_contracts).ok_or_else(|| {
+        format!("no quoted option contract snapshot was available for {underlying_symbol}")
     })
 }
 
@@ -462,9 +443,8 @@ async fn latest_stock_ask(data_client: &DataClient, symbol: &str) -> Result<Deci
         .map(|(_, ask)| ask)
 }
 
-async fn build_mock_test_context(data_client: Option<&DataClient>) -> OrdersTestContext {
-    let market_snapshot = build_mock_market_snapshot(data_client).await;
-    let server = spawn_test_server_with_market_snapshot(market_snapshot.clone()).await;
+async fn build_mock_test_context(data_client: &DataClient) -> OrdersTestContext {
+    let server = alpaca_trade_mock::spawn_test_server().await;
     let client = Client::builder()
         .api_key("mock-api-key")
         .secret_key("mock-secret-key")
@@ -475,34 +455,10 @@ async fn build_mock_test_context(data_client: Option<&DataClient>) -> OrdersTest
     OrdersTestContext {
         runtime_mode: OrdersRuntimeMode::Mock,
         trade_client: client,
-        data_client: data_client.cloned(),
-        market_snapshot: Some(market_snapshot),
+        data_client: Some(data_client.clone()),
+        market_snapshot: None,
         mock_server: Some(server),
     }
-}
-
-async fn build_mock_market_snapshot(data_client: Option<&DataClient>) -> OrdersMarketSnapshot {
-    let mut snapshot = OrdersMarketSnapshot::default();
-
-    if let Some(data_client) = data_client {
-        if let Ok((bid, ask)) = latest_stock_quote(data_client, stock_test_symbol()).await {
-            snapshot =
-                snapshot.with_instrument(stock_test_symbol(), InstrumentSnapshot::equity(bid, ask));
-        }
-    }
-
-    if let Some(data_client) = data_client {
-        if let Ok(universe) = load_cached_option_universe(data_client, stock_test_symbol()).await {
-            for contract in universe.quoted_contracts {
-                snapshot = snapshot.with_instrument(
-                    contract.contract.symbol,
-                    InstrumentSnapshot::option(contract.bid, contract.ask),
-                );
-            }
-        }
-    }
-
-    snapshot
 }
 
 fn best_option_candidate_from_quotes(

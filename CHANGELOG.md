@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.4 - 2026-04-06
+
+- Remove the seeded-snapshot fallback from market-data-dependent `orders` Paper/mock coverage so missing live `alpaca-data` quotes or `optionchain` discovery now fails fast instead of continuing with synthetic prices.
+- Align the internal mock server and its route tests with that rule by resolving midpoint fills from live stock and option data only, including dynamic stock limit fixtures and quoted call-spread midpoint assertions.
+- Clarify the workspace and crate READMEs so the current `orders` testing contract explicitly requires real market data for both dedicated Paper coverage and the mock fallback path.
+
 ## 0.8.3 - 2026-04-06
 
 - Drive mock `orders` fills from live `alpaca-data` quotes and apply midpoint-based execution rules across stocks, single-leg options, and net multi-leg option combos, with the seeded in-memory snapshot kept only as a fallback when live data is unavailable.

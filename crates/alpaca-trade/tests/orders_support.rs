@@ -1,9 +1,11 @@
 mod support;
 
+use alpaca_trade::Client;
 use support::Credentials;
 use support::orders::{
-    OrdersRuntimeMode, data_client_from_trade_credentials, next_client_order_id,
-    select_runtime_mode, should_run_real_cancel_all, stock_test_symbol,
+    OrdersRuntimeMode, OrdersTestContext, data_client_from_trade_credentials,
+    discover_option_contract, next_client_order_id, select_runtime_mode,
+    should_run_real_cancel_all, stock_price_context, stock_test_symbol,
 };
 
 #[test]
@@ -66,4 +68,62 @@ fn test_market_data_builder_uses_same_api_key_names_as_trade_support() {
 
     let _ = client.stocks();
     let _ = client.options();
+}
+
+#[tokio::test]
+async fn mock_stock_price_context_requires_live_market_data_client() {
+    let context = OrdersTestContext {
+        runtime_mode: OrdersRuntimeMode::Mock,
+        trade_client: Client::builder()
+            .api_key("mock-api-key")
+            .secret_key("mock-secret-key")
+            .base_url("http://127.0.0.1:1")
+            .build()
+            .expect("mock client should build"),
+        data_client: None,
+        market_snapshot: Some(
+            alpaca_trade_mock::OrdersMarketSnapshot::default().with_instrument(
+                "SPY",
+                alpaca_trade_mock::InstrumentSnapshot::equity(
+                    alpaca_trade::Decimal::new(50000, 2),
+                    alpaca_trade::Decimal::new(50020, 2),
+                ),
+            ),
+        ),
+        mock_server: None,
+    };
+
+    let error = stock_price_context(&context, "SPY")
+        .await
+        .expect_err("mock stock price context must fail without live market data");
+    assert!(error.contains("mock runtime requires alpaca-data"));
+}
+
+#[tokio::test]
+async fn mock_option_discovery_requires_live_market_data_client() {
+    let context = OrdersTestContext {
+        runtime_mode: OrdersRuntimeMode::Mock,
+        trade_client: Client::builder()
+            .api_key("mock-api-key")
+            .secret_key("mock-secret-key")
+            .base_url("http://127.0.0.1:1")
+            .build()
+            .expect("mock client should build"),
+        data_client: None,
+        market_snapshot: Some(
+            alpaca_trade_mock::OrdersMarketSnapshot::default().with_instrument(
+                "SPY260417C00550000",
+                alpaca_trade_mock::InstrumentSnapshot::option(
+                    alpaca_trade::Decimal::new(120, 2),
+                    alpaca_trade::Decimal::new(130, 2),
+                ),
+            ),
+        ),
+        mock_server: None,
+    };
+
+    let error = discover_option_contract(&context, "SPY")
+        .await
+        .expect_err("mock option discovery must fail without live market data");
+    assert!(error.contains("mock runtime requires alpaca-data"));
 }

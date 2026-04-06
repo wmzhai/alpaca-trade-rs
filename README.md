@@ -100,5 +100,6 @@ Notes:
 - `account_live`, `clock_live`, `calendar_live`, `assets_live`, and `options_contracts_live` are the current `live_readonly` credential-gated smoke paths against the official Alpaca Paper API.
 - `orders_mutating` automatically uses dedicated-account Paper mutating coverage during market hours and falls back to `alpaca-trade-mock` outside that window or when the dedicated-account marker is unavailable.
 - Set `ALPACA_TRADE_ORDERS_TEST_ACCOUNT=1` on the dedicated Paper test account to enable the real `paper_mutating_with_cleanup` path, including the guarded `cancel_all()` coverage and dynamically discovered single-leg / multi-leg option flows backed by `alpaca-data`.
+- Both the dedicated Paper `orders_mutating` path and the mock `orders` coverage now require live `alpaca-data` quotes and `optionchain` discovery; missing live market data fails the test instead of falling back to seeded snapshots or synthetic prices.
 - The live test helper accepts both the standard `APCA_*` names and the repo-local `ALPACA_TRADE_*` aliases.
-- If `.env` credentials are missing, the live tests print skip messages and exit successfully, so a green local run may not include a real paper request.
+- Read-only live smoke tests still skip when credentials are missing, but the market-data-dependent `orders` Paper/mock paths now fail fast because they are expected to prove real quote-backed behavior.

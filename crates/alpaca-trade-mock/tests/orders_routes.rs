@@ -8,7 +8,7 @@ use alpaca_trade::orders::{
 };
 use trade_support::orders::{
     discover_mleg_call_spread, discover_mleg_iron_condor, discover_mleg_put_spread,
-    discover_option_contract, orders_test_context, orders_test_lock,
+    discover_option_contract, orders_test_context, orders_test_lock, stock_price_context,
 };
 
 fn mock_client(base_url: String) -> alpaca_trade::Client {
@@ -39,6 +39,11 @@ fn assert_mleg_parent_shape(order: &alpaca_trade::orders::Order, expected_leg_co
 
 #[tokio::test]
 async fn stock_limit_orders_cover_list_get_replace_cancel_and_alias_lookup() {
+    let _guard = orders_test_lock().await;
+    let context = orders_test_context().await;
+    let stock = stock_price_context(&context, "SPY")
+        .await
+        .expect("live stock quote should be available for mock route tests");
     let server = alpaca_trade_mock::spawn_test_server().await;
     let client = mock_client(server.base_url.clone());
 
@@ -50,7 +55,7 @@ async fn stock_limit_orders_cover_list_get_replace_cancel_and_alias_lookup() {
             side: Some(OrderSide::Buy),
             r#type: Some(OrderType::Limit),
             time_in_force: Some(TimeInForce::Day),
-            limit_price: Some(Decimal::new(49900, 2)),
+            limit_price: Some(stock.non_marketable_buy_limit_price),
             client_order_id: Some("mock-stock-limit-route-1".to_owned()),
             ..CreateRequest::default()
         })
@@ -85,7 +90,7 @@ async fn stock_limit_orders_cover_list_get_replace_cancel_and_alias_lookup() {
         .replace(
             &created.id,
             ReplaceRequest {
-                limit_price: Some(Decimal::new(49800, 2)),
+                limit_price: Some(stock.more_conservative_buy_limit_price),
                 ..Default::default()
             },
         )
@@ -93,7 +98,10 @@ async fn stock_limit_orders_cover_list_get_replace_cancel_and_alias_lookup() {
         .expect("mock replace should succeed");
     assert_ne!(replaced.id, created.id);
     assert_eq!(replaced.replaces.as_deref(), Some(created.id.as_str()));
-    assert_eq!(replaced.limit_price, Some(Decimal::new(49800, 2)));
+    assert_eq!(
+        replaced.limit_price,
+        Some(stock.more_conservative_buy_limit_price)
+    );
     assert_eq!(replaced.status, OrderStatus::Accepted);
 
     let replaced_source = client
@@ -351,6 +359,11 @@ async fn marketable_iron_condor_limit_orders_fill_using_dynamic_contracts() {
 
 #[tokio::test]
 async fn cancel_all_returns_each_canceled_open_order() {
+    let _guard = orders_test_lock().await;
+    let context = orders_test_context().await;
+    let stock = stock_price_context(&context, "SPY")
+        .await
+        .expect("live stock quote should be available for mock route tests");
     let server = alpaca_trade_mock::spawn_test_server().await;
     let client = mock_client(server.base_url.clone());
 
@@ -363,7 +376,7 @@ async fn cancel_all_returns_each_canceled_open_order() {
                 side: Some(OrderSide::Buy),
                 r#type: Some(OrderType::Limit),
                 time_in_force: Some(TimeInForce::Day),
-                limit_price: Some(Decimal::new(49900, 2)),
+                limit_price: Some(stock.non_marketable_buy_limit_price),
                 client_order_id: Some(format!("mock-cancel-all-route-{index}")),
                 ..CreateRequest::default()
             })
