@@ -37,7 +37,9 @@ fn public_api_exposes_account_assets_calendar_and_clock_types_and_accessors() {
     let _ = client.assets();
     let _ = client.calendar();
     let _ = client.clock();
-    let _ = Account::default();
+    let account = Account::default();
+    let _: Option<Decimal> = account.cash.clone();
+    let _: Option<Decimal> = account.buying_power.clone();
     let _: Option<Asset> = None;
     let _ = AssetsListRequest::default();
     let _ = Calendar::default();

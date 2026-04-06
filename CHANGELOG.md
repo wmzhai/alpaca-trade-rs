@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2 - 2026-04-05
+
+- Migrate implemented account financial fields from numeric strings to Decimal in the public Rust model.
+- Keep the official account wire contract string-shaped while parsing both numeric strings and JSON numbers.
+- Add account model, transport, and public API regression coverage for the Decimal migration.
+
 ## 0.5.1 - 2026-04-05
 
 - Add shared Decimal serde helpers for Alpaca response string/number parsing and per-endpoint string/number serialization.

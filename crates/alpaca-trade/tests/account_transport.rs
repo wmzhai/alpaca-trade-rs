@@ -1,11 +1,12 @@
-use alpaca_trade::{Client, Error};
+use alpaca_trade::{Client, Decimal, Error};
+use std::str::FromStr;
 #[path = "support/http_server.rs"]
 mod http_server;
 
 use http_server::TestServer;
 
 fn account_json() -> &'static str {
-    r#"{"id":"acct-1","account_number":"010203ABCD","status":"ACTIVE"}"#
+    r#"{"id":"acct-1","account_number":"010203ABCD","status":"ACTIVE","cash":"100000.00"}"#
 }
 
 #[tokio::test]
@@ -28,6 +29,10 @@ async fn account_get_hits_official_path_and_sends_auth_headers() {
         .expect("account request should succeed");
 
     assert_eq!(account.id, "acct-1");
+    assert_eq!(
+        account.cash,
+        Some(Decimal::from_str("100000.00").expect("decimal should parse"))
+    );
 
     let request = server.into_single_request();
     assert_eq!(request.request_line, "GET /v2/account HTTP/1.1");

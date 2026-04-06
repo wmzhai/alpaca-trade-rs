@@ -1,4 +1,5 @@
-use alpaca_trade::account::Account;
+use alpaca_trade::{Decimal, account::Account};
+use std::str::FromStr;
 
 #[test]
 fn account_model_deserializes_official_shape() {
@@ -43,6 +44,18 @@ fn account_model_deserializes_official_shape() {
     assert_eq!(account.id, "e6fe16f3-64a4-4921-8928-cadf02f92f98");
     assert_eq!(account.status, "ACTIVE");
     assert_eq!(account.currency.as_deref(), Some("USD"));
+    assert_eq!(
+        account.cash,
+        Some(Decimal::from_str("100000.00").expect("decimal should parse"))
+    );
+    assert_eq!(
+        account.buying_power,
+        Some(Decimal::from_str("262113.632").expect("decimal should parse"))
+    );
+    assert_eq!(
+        account.multiplier,
+        Some(Decimal::from_str("4").expect("decimal should parse"))
+    );
     assert_eq!(account.options_approved_level, Some(2));
 }
 
