@@ -4,6 +4,7 @@ use rust_decimal::Decimal;
 use serde::Serialize;
 
 use crate::common::decimal::string_contract::serialize_option_decimal;
+use crate::common::integer::string_contract::serialize_u32;
 use crate::common::query::QueryWriter;
 use crate::common::validate::{required_path_segment, required_text, validate_limit};
 use crate::error::Error;
@@ -124,6 +125,9 @@ impl CreateRequest {
                 leg.validate()?;
             }
         }
+        if self.order_class == Some(OrderClass::Mleg) {
+            validate_mleg_legs(self.legs.as_deref())?;
+        }
         Ok(())
     }
 }
@@ -173,8 +177,8 @@ impl ReplaceRequest {
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct OptionLegRequest {
     pub symbol: String,
-    #[serde(serialize_with = "crate::common::decimal::string_contract::serialize_decimal")]
-    pub ratio_qty: Decimal,
+    #[serde(serialize_with = "serialize_u32")]
+    pub ratio_qty: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub side: Option<OrderSide>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -184,6 +188,11 @@ pub struct OptionLegRequest {
 impl OptionLegRequest {
     fn validate(&self) -> Result<(), Error> {
         required_text("symbol", &self.symbol)?;
+        if self.ratio_qty == 0 {
+            return Err(Error::InvalidRequest(
+                "ratio_qty must be greater than 0".to_owned(),
+            ));
+        }
         Ok(())
     }
 }
@@ -217,6 +226,49 @@ fn validate_optional_symbols(value: Option<Vec<String>>) -> Result<Vec<String>, 
     }
 }
 
+fn validate_mleg_legs(legs: Option<&[OptionLegRequest]>) -> Result<(), Error> {
+    let legs = legs.ok_or_else(|| {
+        Error::InvalidRequest(
+            "legs must contain 2 to 4 option legs when order_class is mleg".to_owned(),
+        )
+    })?;
+
+    if !(2..=4).contains(&legs.len()) {
+        return Err(Error::InvalidRequest(
+            "legs must contain 2 to 4 option legs when order_class is mleg".to_owned(),
+        ));
+    }
+
+    let gcd = legs.iter().fold(0, |current, leg| {
+        if current == 0 {
+            leg.ratio_qty
+        } else {
+            greatest_common_divisor(current, leg.ratio_qty)
+        }
+    });
+
+    if gcd != 1 {
+        return Err(Error::InvalidRequest(
+            "ratio_qty values across mleg legs must use the simplest whole-number ratio".to_owned(),
+        ));
+    }
+
+    Ok(())
+}
+
+fn greatest_common_divisor(lhs: u32, rhs: u32) -> u32 {
+    let mut lhs = lhs;
+    let mut rhs = rhs;
+
+    while rhs != 0 {
+        let remainder = lhs % rhs;
+        lhs = rhs;
+        rhs = remainder;
+    }
+
+    lhs
+}
+
 impl fmt::Display for QueryOrderStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
@@ -241,6 +293,7 @@ impl fmt::Display for OrderSide {
         f.write_str(match self {
             OrderSide::Buy => "buy",
             OrderSide::Sell => "sell",
+            OrderSide::Unspecified => "",
         })
     }
 }

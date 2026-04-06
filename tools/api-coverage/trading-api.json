@@ -173,7 +173,7 @@
           "convenience_status": "implemented",
           "mock_status": "implemented",
           "live_test_status": "paper_gated_with_mock_fallback",
-          "notes": "Phase 7 ships typed mirror support for the official list orders endpoint, keeps the current query words intact, and covers the route through local transport tests plus the stateful mock regression path."
+          "notes": "Phase 7 ships typed mirror support for the official list orders endpoint, keeps the current query words intact, and now exercises the live Paper list path across stock, single-leg option, and dynamically discovered multi-leg option orders before the mock fallback path."
         },
         {
           "operation": "create_order",
@@ -184,7 +184,7 @@
           "convenience_status": "implemented",
           "mock_status": "implemented",
           "live_test_status": "paper_gated_with_mock_fallback",
-          "notes": "Phase 7 ships typed mirror support for order creation and exercises the mutating path through dedicated Paper coverage when enabled or the stateful mock fallback otherwise."
+          "notes": "Phase 7 ships typed mirror support for order creation, including multi-leg option `ratio_qty` string contracts, and exercises the dedicated Paper path with stock, single-leg option, call-spread, put-spread, and iron-condor flows before the mock fallback path."
         },
         {
           "operation": "cancel_all_orders",
@@ -206,7 +206,7 @@
           "convenience_status": "implemented",
           "mock_status": "implemented",
           "live_test_status": "paper_gated_with_mock_fallback",
-          "notes": "ID-addressed lookup is implemented on the shared authenticated GET transport and is exercised from both transport tests and the mutating runtime path."
+          "notes": "ID-addressed lookup is implemented on the shared authenticated GET transport and is exercised from transport tests plus the dedicated Paper mutating runtime across stock, single-leg option, and multi-leg option orders."
         },
         {
           "operation": "replace_order_by_id",
@@ -217,7 +217,7 @@
           "convenience_status": "implemented",
           "mock_status": "implemented",
           "live_test_status": "paper_gated_with_mock_fallback",
-          "notes": "Order replacement is implemented on the shared authenticated PATCH transport with non-GET retry disabled and is covered through Paper-or-mock mutating regression flows."
+          "notes": "Order replacement is implemented on the shared authenticated PATCH transport with non-GET retry disabled and is covered through dedicated Paper stock / single-leg option / multi-leg call-spread lifecycles as well as the fallback mock flows."
         },
         {
           "operation": "cancel_order_by_id",
@@ -228,7 +228,7 @@
           "convenience_status": "implemented",
           "mock_status": "implemented",
           "live_test_status": "paper_gated_with_mock_fallback",
-          "notes": "Single-order cancellation accepts the official 204 no-content response and is covered through Paper-or-mock mutating regression flows."
+          "notes": "Single-order cancellation accepts the official 204 no-content response and is covered through dedicated Paper stock / single-leg option / multi-leg lifecycles as well as the fallback mock flows."
         },
         {
           "operation": "get_order_by_client_order_id",
@@ -239,7 +239,7 @@
           "convenience_status": "implemented",
           "mock_status": "implemented",
           "live_test_status": "paper_gated_with_mock_fallback",
-          "notes": "The alias endpoint is implemented with the official /v2/orders:by_client_order_id shape and exercised through transport plus mutating regression coverage."
+          "notes": "The alias endpoint is implemented with the official /v2/orders:by_client_order_id shape and is exercised through transport plus dedicated Paper mutating coverage for stock, single-leg option, and multi-leg option orders."
         }
       ]
     },

@@ -10,7 +10,8 @@ mod error {
 
 use alpaca_trade::options_contracts::{ContractStatus, ListRequest as OptionsContractsListRequest};
 use alpaca_trade::orders::{
-    CreateRequest as OrdersCreateRequest, ListRequest as OrdersListRequest,
+    CreateRequest as OrdersCreateRequest, ListRequest as OrdersListRequest, OptionLegRequest,
+    OrderClass, OrderSide, PositionIntent,
 };
 use alpaca_trade::{Client, Error};
 
@@ -264,6 +265,136 @@ async fn orders_create_rejects_blank_symbol_before_transport() {
         .expect_err("blank symbol should fail before transport");
 
     assert_public_invalid_request(error, &["symbol", "must not be blank"]);
+}
+
+#[tokio::test]
+async fn orders_create_rejects_mleg_without_legs_before_transport() {
+    let error = auth_client()
+        .orders()
+        .create(OrdersCreateRequest {
+            qty: Some(alpaca_trade::Decimal::new(1, 0)),
+            order_class: Some(OrderClass::Mleg),
+            ..OrdersCreateRequest::default()
+        })
+        .await
+        .expect_err("mleg orders without legs should fail before transport");
+
+    assert_public_invalid_request(error, &["legs", "2 to 4", "mleg"]);
+}
+
+#[tokio::test]
+async fn orders_create_rejects_mleg_with_invalid_leg_count_before_transport() {
+    for legs in [
+        vec![OptionLegRequest {
+            symbol: "SPY260417P00570000".into(),
+            ratio_qty: 1,
+            side: Some(OrderSide::Sell),
+            position_intent: Some(PositionIntent::SellToOpen),
+        }],
+        vec![
+            OptionLegRequest {
+                symbol: "SPY260417P00570000".into(),
+                ratio_qty: 1,
+                side: Some(OrderSide::Sell),
+                position_intent: Some(PositionIntent::SellToOpen),
+            },
+            OptionLegRequest {
+                symbol: "SPY260417P00565000".into(),
+                ratio_qty: 1,
+                side: Some(OrderSide::Buy),
+                position_intent: Some(PositionIntent::BuyToOpen),
+            },
+            OptionLegRequest {
+                symbol: "SPY260417C00590000".into(),
+                ratio_qty: 1,
+                side: Some(OrderSide::Sell),
+                position_intent: Some(PositionIntent::SellToOpen),
+            },
+            OptionLegRequest {
+                symbol: "SPY260417C00595000".into(),
+                ratio_qty: 1,
+                side: Some(OrderSide::Buy),
+                position_intent: Some(PositionIntent::BuyToOpen),
+            },
+            OptionLegRequest {
+                symbol: "SPY260417C00600000".into(),
+                ratio_qty: 1,
+                side: Some(OrderSide::Buy),
+                position_intent: Some(PositionIntent::BuyToOpen),
+            },
+        ],
+    ] {
+        let error = auth_client()
+            .orders()
+            .create(OrdersCreateRequest {
+                qty: Some(alpaca_trade::Decimal::new(1, 0)),
+                order_class: Some(OrderClass::Mleg),
+                legs: Some(legs),
+                ..OrdersCreateRequest::default()
+            })
+            .await
+            .expect_err("invalid mleg leg count should fail before transport");
+
+        assert_public_invalid_request(error, &["legs", "2 to 4", "mleg"]);
+    }
+}
+
+#[tokio::test]
+async fn orders_create_rejects_mleg_leg_with_zero_ratio_qty_before_transport() {
+    let error = auth_client()
+        .orders()
+        .create(OrdersCreateRequest {
+            qty: Some(alpaca_trade::Decimal::new(1, 0)),
+            order_class: Some(OrderClass::Mleg),
+            legs: Some(vec![
+                OptionLegRequest {
+                    symbol: "SPY260417P00570000".into(),
+                    ratio_qty: 0,
+                    side: Some(OrderSide::Sell),
+                    position_intent: Some(PositionIntent::SellToOpen),
+                },
+                OptionLegRequest {
+                    symbol: "SPY260417P00565000".into(),
+                    ratio_qty: 1,
+                    side: Some(OrderSide::Buy),
+                    position_intent: Some(PositionIntent::BuyToOpen),
+                },
+            ]),
+            ..OrdersCreateRequest::default()
+        })
+        .await
+        .expect_err("zero ratio_qty should fail before transport");
+
+    assert_public_invalid_request(error, &["ratio_qty", "greater than 0"]);
+}
+
+#[tokio::test]
+async fn orders_create_rejects_mleg_legs_without_simplest_ratio_before_transport() {
+    let error = auth_client()
+        .orders()
+        .create(OrdersCreateRequest {
+            qty: Some(alpaca_trade::Decimal::new(1, 0)),
+            order_class: Some(OrderClass::Mleg),
+            legs: Some(vec![
+                OptionLegRequest {
+                    symbol: "SPY260417P00570000".into(),
+                    ratio_qty: 2,
+                    side: Some(OrderSide::Sell),
+                    position_intent: Some(PositionIntent::SellToOpen),
+                },
+                OptionLegRequest {
+                    symbol: "SPY260417P00565000".into(),
+                    ratio_qty: 2,
+                    side: Some(OrderSide::Buy),
+                    position_intent: Some(PositionIntent::BuyToOpen),
+                },
+            ]),
+            ..OrdersCreateRequest::default()
+        })
+        .await
+        .expect_err("non-simplest ratio should fail before transport");
+
+    assert_public_invalid_request(error, &["ratio_qty", "simplest"]);
 }
 
 #[tokio::test]

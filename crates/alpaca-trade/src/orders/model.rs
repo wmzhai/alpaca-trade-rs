@@ -3,6 +3,10 @@ use crate::common::decimal::{
     deserialize_option_decimal_from_string_or_number as deserialize_option_decimal,
     string_contract::{serialize_decimal, serialize_option_decimal},
 };
+use crate::common::integer::{
+    deserialize_option_u32_from_string_or_number as deserialize_option_u32,
+    string_contract::serialize_option_u32,
+};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
@@ -24,11 +28,14 @@ pub enum SortDirection {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum OrderSide {
+    #[serde(rename = "buy")]
     Buy,
+    #[serde(rename = "sell")]
     Sell,
+    #[serde(rename = "")]
+    Unspecified,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -40,6 +47,8 @@ pub enum OrderType {
     Stop,
     StopLimit,
     TrailingStop,
+    #[serde(rename = "")]
+    Unspecified,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -211,10 +220,10 @@ pub struct Order {
     pub hwm: Option<Decimal>,
     #[serde(
         default,
-        deserialize_with = "deserialize_option_decimal",
-        serialize_with = "serialize_option_decimal"
+        deserialize_with = "deserialize_option_u32",
+        serialize_with = "serialize_option_u32"
     )]
-    pub ratio_qty: Option<Decimal>,
+    pub ratio_qty: Option<u32>,
     pub take_profit: Option<TakeProfit>,
     pub stop_loss: Option<StopLoss>,
     pub subtag: Option<String>,

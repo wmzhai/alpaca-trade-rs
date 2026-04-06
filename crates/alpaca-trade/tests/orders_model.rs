@@ -164,6 +164,136 @@ fn order_deserializes_legs_take_profit_and_stop_loss_shapes() {
 }
 
 #[test]
+fn order_deserializes_mleg_ratio_qty_as_integer_string() {
+    let payload = json!({
+        "id": "mleg-root-order-id",
+        "client_order_id": "phase7-orders-mleg-1",
+        "created_at": "2026-04-06T15:04:05Z",
+        "updated_at": "2026-04-06T15:04:05Z",
+        "submitted_at": "2026-04-06T15:04:05Z",
+        "filled_at": null,
+        "expired_at": null,
+        "expires_at": null,
+        "canceled_at": null,
+        "failed_at": null,
+        "replaced_at": null,
+        "replaced_by": null,
+        "replaces": null,
+        "asset_id": "",
+        "symbol": "",
+        "asset_class": "",
+        "notional": null,
+        "qty": "1",
+        "filled_qty": "0",
+        "filled_avg_price": null,
+        "order_class": "mleg",
+        "order_type": "",
+        "type": "limit",
+        "side": "",
+        "position_intent": null,
+        "time_in_force": "day",
+        "limit_price": "-0.25",
+        "stop_price": null,
+        "status": "accepted",
+        "extended_hours": false,
+        "legs": [{
+            "id": "mleg-leg-1",
+            "client_order_id": "phase7-orders-mleg-leg-1",
+            "created_at": "2026-04-06T15:04:05Z",
+            "updated_at": "2026-04-06T15:04:05Z",
+            "submitted_at": "2026-04-06T15:04:05Z",
+            "filled_at": null,
+            "expired_at": null,
+            "expires_at": null,
+            "canceled_at": null,
+            "failed_at": null,
+            "replaced_at": null,
+            "replaced_by": null,
+            "replaces": null,
+            "asset_id": "asset-id",
+            "symbol": "SPY260417P00570000",
+            "asset_class": "us_option",
+            "notional": null,
+            "qty": "1",
+            "filled_qty": "0",
+            "filled_avg_price": null,
+            "order_class": "simple",
+            "order_type": "limit",
+            "type": "limit",
+            "side": "sell",
+            "position_intent": "sell_to_open",
+            "time_in_force": "day",
+            "limit_price": "0.40",
+            "stop_price": null,
+            "status": "accepted",
+            "extended_hours": false,
+            "legs": null,
+            "trail_percent": null,
+            "trail_price": null,
+            "hwm": null,
+            "ratio_qty": "2",
+            "subtag": null,
+            "source": null
+        }, {
+            "id": "mleg-leg-2",
+            "client_order_id": "phase7-orders-mleg-leg-2",
+            "created_at": "2026-04-06T15:04:05Z",
+            "updated_at": "2026-04-06T15:04:05Z",
+            "submitted_at": "2026-04-06T15:04:05Z",
+            "filled_at": null,
+            "expired_at": null,
+            "expires_at": null,
+            "canceled_at": null,
+            "failed_at": null,
+            "replaced_at": null,
+            "replaced_by": null,
+            "replaces": null,
+            "asset_id": "asset-id",
+            "symbol": "SPY260417P00565000",
+            "asset_class": "us_option",
+            "notional": null,
+            "qty": "1",
+            "filled_qty": "0",
+            "filled_avg_price": null,
+            "order_class": "simple",
+            "order_type": "limit",
+            "type": "limit",
+            "side": "buy",
+            "position_intent": "buy_to_open",
+            "time_in_force": "day",
+            "limit_price": "0.15",
+            "stop_price": null,
+            "status": "accepted",
+            "extended_hours": false,
+            "legs": null,
+            "trail_percent": null,
+            "trail_price": null,
+            "hwm": null,
+            "ratio_qty": "1",
+            "subtag": null,
+            "source": null
+        }],
+        "trail_percent": null,
+        "trail_price": null,
+        "hwm": null,
+        "ratio_qty": null,
+        "subtag": null,
+        "source": null
+    });
+
+    let order: Order =
+        serde_json::from_value(payload).expect("mleg order payload should deserialize");
+    let legs = order.legs.expect("legs");
+
+    assert_eq!(order.order_class, OrderClass::Mleg);
+    assert_eq!(order.order_type, OrderType::Unspecified);
+    assert_eq!(order.r#type, OrderType::Limit);
+    assert_eq!(order.side, OrderSide::Unspecified);
+    assert_eq!(legs[0].ratio_qty, Some(2));
+    assert_eq!(legs[1].ratio_qty, Some(1));
+}
+
+#[test]
 fn cancel_all_result_deserializes_official_batch_shape() {
     let payload = json!([
         {
@@ -246,7 +376,7 @@ fn create_request_serializes_official_body_words_and_decimal_strings() {
         }),
         legs: Some(vec![OptionLegRequest {
             symbol: "SPY260417C00500000".to_owned(),
-            ratio_qty: Decimal::new(1, 0),
+            ratio_qty: 1,
             side: Some(OrderSide::Buy),
             position_intent: Some(PositionIntent::BuyToOpen),
         }]),
@@ -275,6 +405,59 @@ fn create_request_serializes_official_body_words_and_decimal_strings() {
                 "position_intent": "buy_to_open"
             }],
             "position_intent": "buy_to_open"
+        })
+    );
+}
+
+#[test]
+fn create_request_serializes_mleg_legs_with_integer_ratio_qty_strings() {
+    let payload = serde_json::to_value(CreateRequest {
+        qty: Some(Decimal::new(1, 0)),
+        side: Some(OrderSide::Buy),
+        r#type: Some(OrderType::Limit),
+        time_in_force: Some(TimeInForce::Day),
+        limit_price: Some(Decimal::new(-25, 2)),
+        client_order_id: Some("phase7-orders-mleg-create-1".to_owned()),
+        order_class: Some(OrderClass::Mleg),
+        legs: Some(vec![
+            OptionLegRequest {
+                symbol: "SPY260417P00570000".to_owned(),
+                ratio_qty: 2,
+                side: Some(OrderSide::Sell),
+                position_intent: Some(PositionIntent::SellToOpen),
+            },
+            OptionLegRequest {
+                symbol: "SPY260417P00565000".to_owned(),
+                ratio_qty: 1,
+                side: Some(OrderSide::Buy),
+                position_intent: Some(PositionIntent::BuyToOpen),
+            },
+        ]),
+        ..CreateRequest::default()
+    })
+    .expect("mleg create request should serialize");
+
+    assert_eq!(
+        payload,
+        json!({
+            "qty": "1",
+            "side": "buy",
+            "type": "limit",
+            "time_in_force": "day",
+            "limit_price": "-0.25",
+            "client_order_id": "phase7-orders-mleg-create-1",
+            "order_class": "mleg",
+            "legs": [{
+                "symbol": "SPY260417P00570000",
+                "ratio_qty": "2",
+                "side": "sell",
+                "position_intent": "sell_to_open"
+            }, {
+                "symbol": "SPY260417P00565000",
+                "ratio_qty": "1",
+                "side": "buy",
+                "position_intent": "buy_to_open"
+            }]
         })
     );
 }

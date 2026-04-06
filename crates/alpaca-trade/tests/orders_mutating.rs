@@ -1,14 +1,201 @@
 mod support;
 
 use alpaca_trade::orders::{
-    CreateRequest, ListRequest, OrderStatus, OrderType, PositionIntent, QueryOrderStatus,
-    TimeInForce,
+    CreateRequest, ListRequest, OrderClass, OrderSide, OrderStatus, OrderType, PositionIntent,
+    QueryOrderStatus, ReplaceRequest, TimeInForce,
 };
 use support::orders::{
-    CleanupTracker, cleanup_open_orders, discover_option_contract, orders_test_context,
-    orders_test_lock,
-    stock_price_context, wait_for_order_statuses, wait_for_order_terminal_state,
+    CleanupTracker, MultiLegOrderContext, cleanup_open_orders, discover_mleg_call_spread,
+    discover_mleg_iron_condor, discover_mleg_put_spread, discover_option_contract,
+    orders_test_context, orders_test_lock, stock_price_context, wait_for_order_statuses,
+    wait_for_order_terminal_state,
 };
+
+async fn exercise_mleg_limit_lifecycle(
+    context: &support::orders::OrdersTestContext,
+    cleanup: &mut CleanupTracker,
+    suite: &str,
+    multi_leg: &MultiLegOrderContext,
+) -> Result<(), alpaca_trade::Error> {
+    let create_request = CreateRequest {
+        qty: Some(alpaca_trade::Decimal::new(1, 0)),
+        side: Some(OrderSide::Buy),
+        r#type: Some(OrderType::Limit),
+        time_in_force: Some(TimeInForce::Day),
+        limit_price: Some(multi_leg.non_marketable_limit_price),
+        client_order_id: Some(context.next_client_order_id("mleg-limit", suite)),
+        order_class: Some(OrderClass::Mleg),
+        legs: Some(multi_leg.legs.clone()),
+        ..CreateRequest::default()
+    };
+    let order = context.trade_client.orders().create(create_request).await?;
+    cleanup.record_order_id(order.id.clone());
+    cleanup.record_client_order_id(order.client_order_id.clone());
+
+    let fetched = context.trade_client.orders().get(&order.id).await?;
+    assert_eq!(fetched.id, order.id);
+    assert_eq!(fetched.order_class, OrderClass::Mleg);
+
+    let listed = context
+        .trade_client
+        .orders()
+        .list(ListRequest {
+            status: Some(QueryOrderStatus::Open),
+            limit: Some(100),
+            ..ListRequest::default()
+        })
+        .await?;
+    assert!(
+        listed
+            .iter()
+            .any(|listed_order| listed_order.id == order.id)
+    );
+
+    let fetched_by_client_order_id = context
+        .trade_client
+        .orders()
+        .get_by_client_order_id(&order.client_order_id)
+        .await?;
+    assert_eq!(fetched_by_client_order_id.id, order.id);
+
+    let replaceable = wait_for_order_statuses(
+        &context.trade_client,
+        &order.id,
+        &[
+            OrderStatus::New,
+            OrderStatus::Accepted,
+            OrderStatus::PendingNew,
+        ],
+    )
+    .await?;
+    let replaced = context
+        .trade_client
+        .orders()
+        .replace(
+            &replaceable.id,
+            ReplaceRequest {
+                limit_price: Some(multi_leg.more_conservative_limit_price),
+                ..ReplaceRequest::default()
+            },
+        )
+        .await?;
+    let active_order_id = if replaced.id == order.id {
+        order.id.clone()
+    } else {
+        assert_eq!(replaced.replaces.as_deref(), Some(order.id.as_str()));
+        cleanup.record_order_id(replaced.id.clone());
+        replaced.id.clone()
+    };
+
+    context
+        .trade_client
+        .orders()
+        .cancel(&active_order_id)
+        .await?;
+    let canceled = wait_for_order_terminal_state(&context.trade_client, &active_order_id).await?;
+    assert_eq!(canceled.status, OrderStatus::Canceled);
+    Ok(())
+}
+
+async fn close_filled_mleg_legs(
+    context: &support::orders::OrdersTestContext,
+    cleanup: &mut CleanupTracker,
+    suite: &str,
+    multi_leg: &MultiLegOrderContext,
+) -> Result<(), alpaca_trade::Error> {
+    for (index, leg) in multi_leg.legs.iter().enumerate() {
+        let (side, position_intent) = match (
+            leg.side.clone().expect("mleg leg side should be present"),
+            leg.position_intent
+                .clone()
+                .expect("mleg leg position intent should be present"),
+        ) {
+            (OrderSide::Buy, PositionIntent::BuyToOpen) => {
+                (OrderSide::Sell, PositionIntent::SellToClose)
+            }
+            (OrderSide::Sell, PositionIntent::SellToOpen) => {
+                (OrderSide::Buy, PositionIntent::BuyToClose)
+            }
+            (side, intent) => panic!("unexpected open mleg leg shape: {side:?} / {intent:?}"),
+        };
+
+        let close = context
+            .trade_client
+            .orders()
+            .create(CreateRequest {
+                symbol: Some(leg.symbol.clone()),
+                qty: Some(alpaca_trade::Decimal::new(i64::from(leg.ratio_qty), 0)),
+                side: Some(side),
+                r#type: Some(OrderType::Market),
+                time_in_force: Some(TimeInForce::Day),
+                client_order_id: Some(
+                    context.next_client_order_id("mleg-close", &format!("{suite}-leg-{index}")),
+                ),
+                position_intent: Some(position_intent),
+                ..CreateRequest::default()
+            })
+            .await?;
+        cleanup.record_order_id(close.id.clone());
+        cleanup.record_client_order_id(close.client_order_id.clone());
+
+        let closed = wait_for_order_terminal_state(&context.trade_client, &close.id).await?;
+        assert_eq!(closed.status, OrderStatus::Filled);
+    }
+
+    Ok(())
+}
+
+async fn exercise_mleg_marketable_fill(
+    context: &support::orders::OrdersTestContext,
+    cleanup: &mut CleanupTracker,
+    suite: &str,
+    multi_leg: &MultiLegOrderContext,
+) -> Result<(), alpaca_trade::Error> {
+    let create_request = CreateRequest {
+        qty: Some(alpaca_trade::Decimal::new(1, 0)),
+        side: Some(OrderSide::Buy),
+        r#type: Some(OrderType::Limit),
+        time_in_force: Some(TimeInForce::Day),
+        limit_price: Some(multi_leg.marketable_limit_price),
+        client_order_id: Some(context.next_client_order_id("mleg-fill", suite)),
+        order_class: Some(OrderClass::Mleg),
+        legs: Some(multi_leg.legs.clone()),
+        ..CreateRequest::default()
+    };
+    let order = context.trade_client.orders().create(create_request).await?;
+    cleanup.record_order_id(order.id.clone());
+    cleanup.record_client_order_id(order.client_order_id.clone());
+
+    let fetched = context.trade_client.orders().get(&order.id).await?;
+    assert_eq!(fetched.id, order.id);
+
+    let listed = context
+        .trade_client
+        .orders()
+        .list(ListRequest {
+            status: Some(QueryOrderStatus::All),
+            limit: Some(100),
+            ..ListRequest::default()
+        })
+        .await?;
+    assert!(
+        listed
+            .iter()
+            .any(|listed_order| listed_order.id == order.id)
+    );
+
+    let fetched_by_client_order_id = context
+        .trade_client
+        .orders()
+        .get_by_client_order_id(&order.client_order_id)
+        .await?;
+    assert_eq!(fetched_by_client_order_id.id, order.id);
+
+    let filled = wait_for_order_terminal_state(&context.trade_client, &order.id).await?;
+    assert_eq!(filled.status, OrderStatus::Filled);
+
+    close_filled_mleg_legs(context, cleanup, suite, multi_leg).await
+}
 
 #[tokio::test]
 async fn orders_mutating_stock_limit_create_get_replace_cancel_and_lookup_by_client_order_id() {
@@ -52,7 +239,11 @@ async fn orders_mutating_stock_limit_create_get_replace_cancel_and_lookup_by_cli
                 ..ListRequest::default()
             })
             .await?;
-        assert!(listed.iter().any(|listed_order| listed_order.id == order.id));
+        assert!(
+            listed
+                .iter()
+                .any(|listed_order| listed_order.id == order.id)
+        );
 
         let fetched_by_client_order_id = context
             .trade_client
@@ -87,7 +278,11 @@ async fn orders_mutating_stock_limit_create_get_replace_cancel_and_lookup_by_cli
             replaced.id.clone()
         };
 
-        context.trade_client.orders().cancel(&active_order_id).await?;
+        context
+            .trade_client
+            .orders()
+            .cancel(&active_order_id)
+            .await?;
         let canceled =
             wait_for_order_terminal_state(&context.trade_client, &active_order_id).await?;
         assert_eq!(canceled.status, OrderStatus::Canceled);
@@ -192,7 +387,11 @@ async fn orders_mutating_option_limit_create_get_replace_cancel_and_lookup_by_cl
                 ..ListRequest::default()
             })
             .await?;
-        assert!(listed.iter().any(|listed_order| listed_order.id == order.id));
+        assert!(
+            listed
+                .iter()
+                .any(|listed_order| listed_order.id == order.id)
+        );
 
         let fetched_by_client_order_id = context
             .trade_client
@@ -207,10 +406,10 @@ async fn orders_mutating_option_limit_create_get_replace_cancel_and_lookup_by_cl
             &[OrderStatus::New, OrderStatus::Accepted],
         )
         .await?;
-        let replacement_limit_price =
-            (contract.non_marketable_buy_limit_price / alpaca_trade::Decimal::new(2, 0))
-                .round_dp(2)
-                .max(alpaca_trade::Decimal::new(1, 2));
+        let replacement_limit_price = (contract.non_marketable_buy_limit_price
+            / alpaca_trade::Decimal::new(2, 0))
+        .round_dp(2)
+        .max(alpaca_trade::Decimal::new(1, 2));
 
         let replaced = context
             .trade_client
@@ -231,7 +430,11 @@ async fn orders_mutating_option_limit_create_get_replace_cancel_and_lookup_by_cl
             replaced.id.clone()
         };
 
-        context.trade_client.orders().cancel(&active_order_id).await?;
+        context
+            .trade_client
+            .orders()
+            .cancel(&active_order_id)
+            .await?;
         let canceled =
             wait_for_order_terminal_state(&context.trade_client, &active_order_id).await?;
         assert_eq!(canceled.status, OrderStatus::Canceled);
@@ -296,6 +499,76 @@ async fn orders_mutating_option_market_order_reaches_terminal_state() {
 
     cleanup_open_orders(&context, &cleanup).await;
     result.expect("option market order flow should succeed");
+}
+
+#[tokio::test]
+async fn orders_mutating_mleg_call_spread_limit_create_get_replace_cancel_and_lookup_by_client_order_id()
+ {
+    let _guard = orders_test_lock().await;
+    let context = orders_test_context().await;
+    if context.is_mock() {
+        eprintln!("skipping mleg call spread live test: dedicated Paper runtime is unavailable");
+        return;
+    }
+
+    let mut cleanup = CleanupTracker::new(false);
+    let result: Result<(), alpaca_trade::Error> = async {
+        let multi_leg = discover_mleg_call_spread(&context, "SPY")
+            .await
+            .expect("quoted call spread should be discoverable");
+
+        exercise_mleg_limit_lifecycle(&context, &mut cleanup, "call-spread", &multi_leg).await
+    }
+    .await;
+
+    cleanup_open_orders(&context, &cleanup).await;
+    result.expect("mleg call spread flow should succeed");
+}
+
+#[tokio::test]
+async fn orders_mutating_mleg_put_spread_marketable_limit_reaches_terminal_state() {
+    let _guard = orders_test_lock().await;
+    let context = orders_test_context().await;
+    if context.is_mock() {
+        eprintln!("skipping mleg put spread live test: dedicated Paper runtime is unavailable");
+        return;
+    }
+
+    let mut cleanup = CleanupTracker::new(false);
+    let result: Result<(), alpaca_trade::Error> = async {
+        let multi_leg = discover_mleg_put_spread(&context, "SPY")
+            .await
+            .expect("quoted put spread should be discoverable");
+
+        exercise_mleg_marketable_fill(&context, &mut cleanup, "put-spread", &multi_leg).await
+    }
+    .await;
+
+    cleanup_open_orders(&context, &cleanup).await;
+    result.expect("mleg put spread fill flow should succeed");
+}
+
+#[tokio::test]
+async fn orders_mutating_mleg_iron_condor_marketable_limit_reaches_terminal_state() {
+    let _guard = orders_test_lock().await;
+    let context = orders_test_context().await;
+    if context.is_mock() {
+        eprintln!("skipping mleg iron condor live test: dedicated Paper runtime is unavailable");
+        return;
+    }
+
+    let mut cleanup = CleanupTracker::new(false);
+    let result: Result<(), alpaca_trade::Error> = async {
+        let multi_leg = discover_mleg_iron_condor(&context, "SPY")
+            .await
+            .expect("quoted iron condor should be discoverable");
+
+        exercise_mleg_marketable_fill(&context, &mut cleanup, "iron-condor", &multi_leg).await
+    }
+    .await;
+
+    cleanup_open_orders(&context, &cleanup).await;
+    result.expect("mleg iron condor fill flow should succeed");
 }
 
 #[tokio::test]

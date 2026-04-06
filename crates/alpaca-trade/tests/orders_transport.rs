@@ -1,6 +1,6 @@
 use alpaca_trade::orders::{
-    CreateRequest, ListRequest, OrderClass, OrderSide, OrderType, PositionIntent, QueryOrderStatus,
-    ReplaceRequest, SortDirection, StopLoss, TakeProfit, TimeInForce,
+    CreateRequest, ListRequest, OptionLegRequest, OrderClass, OrderSide, OrderType, PositionIntent,
+    QueryOrderStatus, ReplaceRequest, SortDirection, StopLoss, TakeProfit, TimeInForce,
 };
 use alpaca_trade::{Client, Error};
 use serde_json::json;
@@ -362,6 +362,79 @@ async fn orders_create_posts_official_body_shape_once() {
             "take_profit": { "limit_price": "510.00" },
             "stop_loss": { "stop_price": "492.00", "limit_price": "491.50" },
             "position_intent": "buy_to_open"
+        })
+    );
+}
+
+#[tokio::test]
+async fn orders_create_posts_official_mleg_body_shape_once() {
+    let body = order_json();
+    let server = TestServer::spawn(vec![format!(
+        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+        body.len(),
+        body
+    )]);
+
+    let order = Client::builder()
+        .api_key("key")
+        .secret_key("secret")
+        .base_url(server.base_url())
+        .build()
+        .expect("client should build")
+        .orders()
+        .create(CreateRequest {
+            qty: Some(rust_decimal::Decimal::new(1, 0)),
+            side: Some(OrderSide::Buy),
+            r#type: Some(OrderType::Limit),
+            time_in_force: Some(TimeInForce::Day),
+            limit_price: Some(rust_decimal::Decimal::new(-25, 2)),
+            client_order_id: Some("phase7-orders-create-mleg-transport-1".to_owned()),
+            order_class: Some(OrderClass::Mleg),
+            legs: Some(vec![
+                OptionLegRequest {
+                    symbol: "SPY260417P00570000".to_owned(),
+                    ratio_qty: 2,
+                    side: Some(OrderSide::Sell),
+                    position_intent: Some(PositionIntent::SellToOpen),
+                },
+                OptionLegRequest {
+                    symbol: "SPY260417P00565000".to_owned(),
+                    ratio_qty: 1,
+                    side: Some(OrderSide::Buy),
+                    position_intent: Some(PositionIntent::BuyToOpen),
+                },
+            ]),
+            ..CreateRequest::default()
+        })
+        .await
+        .expect("orders mleg create request should succeed");
+
+    assert_eq!(order.symbol, "SPY");
+
+    let request = server.into_single_request();
+    assert_eq!(request.request_line, "POST /v2/orders HTTP/1.1");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&request.body)
+            .expect("request body must be json"),
+        json!({
+            "qty": "1",
+            "side": "buy",
+            "type": "limit",
+            "time_in_force": "day",
+            "limit_price": "-0.25",
+            "client_order_id": "phase7-orders-create-mleg-transport-1",
+            "order_class": "mleg",
+            "legs": [{
+                "symbol": "SPY260417P00570000",
+                "ratio_qty": "2",
+                "side": "sell",
+                "position_intent": "sell_to_open"
+            }, {
+                "symbol": "SPY260417P00565000",
+                "ratio_qty": "1",
+                "side": "buy",
+                "position_intent": "buy_to_open"
+            }]
         })
     );
 }

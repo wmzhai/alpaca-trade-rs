@@ -16,7 +16,7 @@
 - Default retry behavior: automatic retry is limited to `GET`
 - Retry semantics: `max_get_attempts` counts total attempts, so `1` disables retry and `2` means one retry after the first failed `GET`
 - Numeric model policy: high-precision financial fields in the public Rust API use `alpaca_trade::Decimal`, while request/response wire shapes still mirror the official Alpaca contract
-- Benchmark note: Phase 6 reuses the existing read-only `GET` and pagination foundation, so the current milestone does not add a dedicated benchmark track
+- Benchmark note: Phase 7 continues to reuse the shared transport foundation, so the current milestone does not add a dedicated benchmark track
 
 ## Workspace
 
@@ -99,6 +99,6 @@ Notes:
 - `account_model`, `account_transport`, `clock_model`, `clock_transport`, `calendar_model`, `calendar_transport`, `assets_model`, `assets_transport`, `options_contracts_model`, and `options_contracts_transport` stay local/offline.
 - `account_live`, `clock_live`, `calendar_live`, `assets_live`, and `options_contracts_live` are the current `live_readonly` credential-gated smoke paths against the official Alpaca Paper API.
 - `orders_mutating` automatically uses dedicated-account Paper mutating coverage during market hours and falls back to `alpaca-trade-mock` outside that window or when the dedicated-account marker is unavailable.
-- Set `ALPACA_TRADE_ORDERS_TEST_ACCOUNT=1` on the dedicated Paper test account to enable the real `paper_mutating_with_cleanup` path, including the guarded `cancel_all()` coverage.
+- Set `ALPACA_TRADE_ORDERS_TEST_ACCOUNT=1` on the dedicated Paper test account to enable the real `paper_mutating_with_cleanup` path, including the guarded `cancel_all()` coverage and dynamically discovered single-leg / multi-leg option flows backed by `alpaca-data`.
 - The live test helper accepts both the standard `APCA_*` names and the repo-local `ALPACA_TRADE_*` aliases.
 - If `.env` credentials are missing, the live tests print skip messages and exit successfully, so a green local run may not include a real paper request.

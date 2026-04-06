@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.2 - 2026-04-06
+
+- Add typed multi-leg `orders` request/response support for integer `ratio_qty` values serialized as the official string contract, together with fail-fast `mleg` validation for leg count and simplest-ratio semantics.
+- Accept Alpaca Paper multi-leg response quirks where parent `side` or duplicate `order_type` fields may arrive as empty strings while child legs still preserve their typed mirror fields.
+- Expand dedicated Paper `orders_mutating` coverage with dynamically discovered real option strategies from `alpaca-data`, including a call-spread limit lifecycle plus put-spread and iron-condor filled cleanup flows.
+
 ## 0.8.1 - 2026-04-06
 
 - Stabilize live Paper `orders_mutating` coverage by serializing the mutating tests on the shared dedicated account.

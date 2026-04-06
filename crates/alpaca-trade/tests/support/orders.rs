@@ -7,12 +7,15 @@ use alpaca_data::stocks::LatestQuoteRequest;
 use alpaca_data::{Client as DataClient, options};
 use alpaca_trade::Client;
 use alpaca_trade::calendar::ListRequest as CalendarListRequest;
-use alpaca_trade::options_contracts::{ContractStatus, ListRequest as OptionsContractsListRequest};
-use alpaca_trade::orders::{Order, OrderStatus};
+use alpaca_trade::options_contracts::{
+    ContractStatus, ContractType, ListRequest as OptionsContractsListRequest, OptionContract,
+};
+use alpaca_trade::orders::{OptionLegRequest, Order, OrderSide, OrderStatus, PositionIntent};
 use alpaca_trade::{Decimal, Error};
 use alpaca_trade_mock::{
     InstrumentSnapshot, OrdersMarketSnapshot, spawn_test_server_with_market_snapshot,
 };
+use chrono::{Days, Utc};
 use tokio::sync::{Mutex, MutexGuard};
 use tokio::time::sleep;
 
@@ -20,6 +23,9 @@ use super::Credentials;
 
 const DEDICATED_ORDERS_TEST_ACCOUNT_ENV: &str = "ALPACA_TRADE_ORDERS_TEST_ACCOUNT";
 const MIN_PRICE: Decimal = Decimal::ZERO;
+const OPTION_DISCOVERY_LOOKAHEAD_DAYS: u64 = 21;
+const OPTION_DISCOVERY_STRIKE_WINDOW_BPS: i64 = 750;
+const OPTION_SNAPSHOT_BATCH_SIZE: usize = 100;
 static CLIENT_ORDER_COUNTER: AtomicU64 = AtomicU64::new(1);
 static ORDERS_MUTATING_TEST_MUTEX: Mutex<()> = Mutex::const_new(());
 
@@ -54,6 +60,22 @@ pub(crate) struct StockPriceContext {
 pub(crate) struct OptionContractContext {
     pub(crate) symbol: String,
     pub(crate) non_marketable_buy_limit_price: Decimal,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct MultiLegOrderContext {
+    pub(crate) underlying_symbol: String,
+    pub(crate) legs: Vec<OptionLegRequest>,
+    pub(crate) non_marketable_limit_price: Decimal,
+    pub(crate) more_conservative_limit_price: Decimal,
+    pub(crate) marketable_limit_price: Decimal,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct QuotedOptionContract {
+    contract: OptionContract,
+    bid: Decimal,
+    ask: Decimal,
 }
 
 impl CleanupTracker {
@@ -271,6 +293,39 @@ pub(crate) async fn discover_option_contract(
     discover_live_option_contract(&context.trade_client, data_client, underlying_symbol).await
 }
 
+pub(crate) async fn discover_mleg_call_spread(
+    context: &OrdersTestContext,
+    underlying_symbol: &str,
+) -> Result<MultiLegOrderContext, String> {
+    let data_client = context
+        .data_client
+        .as_ref()
+        .ok_or_else(|| "paper context is missing data client".to_owned())?;
+    discover_live_mleg_call_spread(&context.trade_client, data_client, underlying_symbol).await
+}
+
+pub(crate) async fn discover_mleg_put_spread(
+    context: &OrdersTestContext,
+    underlying_symbol: &str,
+) -> Result<MultiLegOrderContext, String> {
+    let data_client = context
+        .data_client
+        .as_ref()
+        .ok_or_else(|| "paper context is missing data client".to_owned())?;
+    discover_live_mleg_put_spread(&context.trade_client, data_client, underlying_symbol).await
+}
+
+pub(crate) async fn discover_mleg_iron_condor(
+    context: &OrdersTestContext,
+    underlying_symbol: &str,
+) -> Result<MultiLegOrderContext, String> {
+    let data_client = context
+        .data_client
+        .as_ref()
+        .ok_or_else(|| "paper context is missing data client".to_owned())?;
+    discover_live_mleg_iron_condor(&context.trade_client, data_client, underlying_symbol).await
+}
+
 async fn discover_live_option_contract(
     trade_client: &Client,
     data_client: &DataClient,
@@ -314,6 +369,68 @@ async fn discover_live_option_contract(
     best_option_candidate(tradable_contracts, snapshots.snapshots).ok_or_else(|| {
         format!("no quoted option contract snapshot was available for {underlying_symbol}")
     })
+}
+
+async fn discover_live_mleg_call_spread(
+    trade_client: &Client,
+    data_client: &DataClient,
+    underlying_symbol: &str,
+) -> Result<MultiLegOrderContext, String> {
+    let spot = latest_stock_ask(data_client, underlying_symbol).await?;
+    let calls = discover_quoted_contracts(
+        trade_client,
+        data_client,
+        underlying_symbol,
+        ContractType::Call,
+        spot,
+    )
+    .await?;
+
+    find_call_spread(underlying_symbol, spot, calls)
+}
+
+async fn discover_live_mleg_put_spread(
+    trade_client: &Client,
+    data_client: &DataClient,
+    underlying_symbol: &str,
+) -> Result<MultiLegOrderContext, String> {
+    let spot = latest_stock_ask(data_client, underlying_symbol).await?;
+    let puts = discover_quoted_contracts(
+        trade_client,
+        data_client,
+        underlying_symbol,
+        ContractType::Put,
+        spot,
+    )
+    .await?;
+
+    find_put_spread(underlying_symbol, spot, puts)
+}
+
+async fn discover_live_mleg_iron_condor(
+    trade_client: &Client,
+    data_client: &DataClient,
+    underlying_symbol: &str,
+) -> Result<MultiLegOrderContext, String> {
+    let spot = latest_stock_ask(data_client, underlying_symbol).await?;
+    let puts = discover_quoted_contracts(
+        trade_client,
+        data_client,
+        underlying_symbol,
+        ContractType::Put,
+        spot,
+    )
+    .await?;
+    let calls = discover_quoted_contracts(
+        trade_client,
+        data_client,
+        underlying_symbol,
+        ContractType::Call,
+        spot,
+    )
+    .await?;
+
+    find_iron_condor(underlying_symbol, spot, puts, calls)
 }
 
 pub(crate) async fn wait_for_order_terminal_state(
@@ -509,6 +626,471 @@ fn best_option_candidate(
             symbol,
             non_marketable_buy_limit_price: conservative_price_below_market(ask),
         })
+}
+
+async fn discover_quoted_contracts(
+    trade_client: &Client,
+    data_client: &DataClient,
+    underlying_symbol: &str,
+    contract_type: ContractType,
+    spot: Decimal,
+) -> Result<Vec<QuotedOptionContract>, String> {
+    let contracts = list_active_tradable_contracts(
+        trade_client,
+        underlying_symbol,
+        contract_type.clone(),
+        strike_window(spot, -OPTION_DISCOVERY_STRIKE_WINDOW_BPS),
+        strike_window(spot, OPTION_DISCOVERY_STRIKE_WINDOW_BPS),
+    )
+    .await?;
+    let snapshots = option_snapshots_by_symbol(
+        data_client,
+        contracts
+            .iter()
+            .map(|contract| contract.symbol.clone())
+            .collect::<Vec<_>>(),
+    )
+    .await?;
+
+    let quoted = contracts
+        .into_iter()
+        .filter_map(|contract| quoted_contract(contract, &snapshots))
+        .collect::<Vec<_>>();
+
+    if quoted.is_empty() {
+        return Err(format!(
+            "no quoted {:?} contracts were available for {underlying_symbol}",
+            contract_type
+        ));
+    }
+
+    Ok(quoted)
+}
+
+async fn list_active_tradable_contracts(
+    trade_client: &Client,
+    underlying_symbol: &str,
+    contract_type: ContractType,
+    strike_price_gte: Decimal,
+    strike_price_lte: Decimal,
+) -> Result<Vec<OptionContract>, String> {
+    let today = Utc::now().date_naive();
+    let latest_expiration = today
+        .checked_add_days(Days::new(OPTION_DISCOVERY_LOOKAHEAD_DAYS))
+        .ok_or_else(|| "failed to compute option discovery lookahead window".to_owned())?;
+    let mut page_token = None;
+    let mut contracts = Vec::new();
+
+    loop {
+        let response = trade_client
+            .options_contracts()
+            .list(OptionsContractsListRequest {
+                underlying_symbols: Some(vec![underlying_symbol.to_owned()]),
+                status: Some(ContractStatus::Active),
+                expiration_date_gte: Some(today.to_string()),
+                expiration_date_lte: Some(latest_expiration.to_string()),
+                r#type: Some(contract_type.clone()),
+                strike_price_gte: Some(strike_price_gte),
+                strike_price_lte: Some(strike_price_lte),
+                limit: Some(1_000),
+                page_token: page_token.clone(),
+                ..OptionsContractsListRequest::default()
+            })
+            .await
+            .map_err(|error| format!("options_contracts list failed: {error}"))?;
+
+        contracts.extend(
+            response
+                .option_contracts
+                .into_iter()
+                .filter(|contract| contract.tradable),
+        );
+        page_token = response.next_page_token;
+
+        if page_token.is_none() {
+            break;
+        }
+    }
+
+    if contracts.is_empty() {
+        return Err(format!(
+            "no active tradable {:?} contracts were returned for {underlying_symbol}",
+            contract_type
+        ));
+    }
+
+    Ok(contracts)
+}
+
+async fn option_snapshots_by_symbol(
+    data_client: &DataClient,
+    symbols: Vec<String>,
+) -> Result<HashMap<String, options::Snapshot>, String> {
+    let mut snapshots = HashMap::new();
+
+    for batch in symbols.chunks(OPTION_SNAPSHOT_BATCH_SIZE) {
+        let response = data_client
+            .options()
+            .snapshots(options::SnapshotsRequest {
+                symbols: batch.to_vec(),
+                ..options::SnapshotsRequest::default()
+            })
+            .await
+            .map_err(|error| format!("options snapshots request failed: {error}"))?;
+        snapshots.extend(response.snapshots);
+    }
+
+    Ok(snapshots)
+}
+
+fn quoted_contract(
+    contract: OptionContract,
+    snapshots: &HashMap<String, options::Snapshot>,
+) -> Option<QuotedOptionContract> {
+    let snapshot = snapshots.get(&contract.symbol)?;
+    let latest_trade_price = snapshot
+        .latestTrade
+        .as_ref()
+        .and_then(|trade| trade.p)
+        .and_then(decimal_from_market_data);
+    let bid = snapshot
+        .latestQuote
+        .as_ref()
+        .and_then(|quote| quote.bp)
+        .and_then(decimal_from_market_data)
+        .or(latest_trade_price)?;
+    let ask = snapshot
+        .latestQuote
+        .as_ref()
+        .and_then(|quote| quote.ap)
+        .and_then(decimal_from_market_data)
+        .or_else(|| {
+            snapshot
+                .latestQuote
+                .as_ref()
+                .and_then(|quote| quote.bp)
+                .and_then(decimal_from_market_data)
+        })
+        .or(latest_trade_price)?;
+
+    if bid <= MIN_PRICE || ask <= MIN_PRICE || ask < bid {
+        return None;
+    }
+
+    Some(QuotedOptionContract { contract, bid, ask })
+}
+
+fn find_call_spread(
+    underlying_symbol: &str,
+    spot: Decimal,
+    contracts: Vec<QuotedOptionContract>,
+) -> Result<MultiLegOrderContext, String> {
+    for (_, mut expiration_contracts) in group_by_expiration(contracts) {
+        sort_by_strike(&mut expiration_contracts);
+
+        let mut best_candidate = None;
+        for window in expiration_contracts.windows(2) {
+            let lower = &window[0];
+            let higher = &window[1];
+            if higher.contract.strike_price <= lower.contract.strike_price {
+                continue;
+            }
+
+            let score = (lower.contract.strike_price - spot).abs();
+            let candidate = build_debit_mleg_context(
+                underlying_symbol,
+                vec![
+                    strategy_leg(lower.clone(), 1, OrderSide::Buy, PositionIntent::BuyToOpen),
+                    strategy_leg(
+                        higher.clone(),
+                        1,
+                        OrderSide::Sell,
+                        PositionIntent::SellToOpen,
+                    ),
+                ],
+            );
+            if let Ok(context) = candidate {
+                match &best_candidate {
+                    Some((best_score, _)) if score >= *best_score => {}
+                    _ => best_candidate = Some((score, context)),
+                }
+            }
+        }
+
+        if let Some((_, context)) = best_candidate {
+            return Ok(context);
+        }
+    }
+
+    Err(format!(
+        "failed to discover a quoted debit call spread for {underlying_symbol}"
+    ))
+}
+
+fn find_put_spread(
+    underlying_symbol: &str,
+    spot: Decimal,
+    contracts: Vec<QuotedOptionContract>,
+) -> Result<MultiLegOrderContext, String> {
+    for (_, mut expiration_contracts) in group_by_expiration(contracts) {
+        sort_by_strike(&mut expiration_contracts);
+
+        let mut best_candidate = None;
+        for window in expiration_contracts.windows(2) {
+            let lower = &window[0];
+            let higher = &window[1];
+            if higher.contract.strike_price <= lower.contract.strike_price {
+                continue;
+            }
+
+            let score = (higher.contract.strike_price - spot).abs();
+            let candidate = build_debit_mleg_context(
+                underlying_symbol,
+                vec![
+                    strategy_leg(higher.clone(), 1, OrderSide::Buy, PositionIntent::BuyToOpen),
+                    strategy_leg(
+                        lower.clone(),
+                        1,
+                        OrderSide::Sell,
+                        PositionIntent::SellToOpen,
+                    ),
+                ],
+            );
+            if let Ok(context) = candidate {
+                match &best_candidate {
+                    Some((best_score, _)) if score >= *best_score => {}
+                    _ => best_candidate = Some((score, context)),
+                }
+            }
+        }
+
+        if let Some((_, context)) = best_candidate {
+            return Ok(context);
+        }
+    }
+
+    Err(format!(
+        "failed to discover a quoted debit put spread for {underlying_symbol}"
+    ))
+}
+
+fn find_iron_condor(
+    underlying_symbol: &str,
+    spot: Decimal,
+    puts: Vec<QuotedOptionContract>,
+    calls: Vec<QuotedOptionContract>,
+) -> Result<MultiLegOrderContext, String> {
+    let put_groups = group_by_expiration(puts);
+    let call_groups = group_by_expiration(calls)
+        .into_iter()
+        .collect::<HashMap<_, _>>();
+
+    for (expiration, mut expiration_puts) in put_groups {
+        let Some(mut expiration_calls) = call_groups.get(&expiration).cloned() else {
+            continue;
+        };
+
+        sort_by_strike(&mut expiration_puts);
+        sort_by_strike(&mut expiration_calls);
+
+        let put_candidates = expiration_puts
+            .iter()
+            .filter(|contract| contract.contract.strike_price < spot)
+            .cloned()
+            .collect::<Vec<_>>();
+        let call_candidates = expiration_calls
+            .iter()
+            .filter(|contract| contract.contract.strike_price > spot)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        if put_candidates.len() < 2 || call_candidates.len() < 2 {
+            continue;
+        }
+
+        let mut best_candidate = None;
+        for outer_put_index in 0..put_candidates.len() - 1 {
+            for inner_put_index in outer_put_index + 1..put_candidates.len() {
+                let outer_put = put_candidates[outer_put_index].clone();
+                let inner_put = put_candidates[inner_put_index].clone();
+
+                for inner_call_index in 0..call_candidates.len() - 1 {
+                    for outer_call_index in inner_call_index + 1..call_candidates.len() {
+                        let inner_call = call_candidates[inner_call_index].clone();
+                        let outer_call = call_candidates[outer_call_index].clone();
+                        let score = (spot - inner_put.contract.strike_price).abs()
+                            + (inner_call.contract.strike_price - spot).abs()
+                            + (inner_put.contract.strike_price - outer_put.contract.strike_price)
+                                .abs()
+                            + (outer_call.contract.strike_price - inner_call.contract.strike_price)
+                                .abs();
+
+                        let candidate = build_debit_mleg_context(
+                            underlying_symbol,
+                            vec![
+                                strategy_leg(
+                                    outer_put.clone(),
+                                    1,
+                                    OrderSide::Buy,
+                                    PositionIntent::BuyToOpen,
+                                ),
+                                strategy_leg(
+                                    inner_put.clone(),
+                                    1,
+                                    OrderSide::Sell,
+                                    PositionIntent::SellToOpen,
+                                ),
+                                strategy_leg(
+                                    inner_call.clone(),
+                                    1,
+                                    OrderSide::Sell,
+                                    PositionIntent::SellToOpen,
+                                ),
+                                strategy_leg(
+                                    outer_call.clone(),
+                                    1,
+                                    OrderSide::Buy,
+                                    PositionIntent::BuyToOpen,
+                                ),
+                            ],
+                        );
+
+                        if let Ok(context) = candidate {
+                            match &best_candidate {
+                                Some((best_score, _)) if score >= *best_score => {}
+                                _ => best_candidate = Some((score, context)),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some((_, context)) = best_candidate {
+            return Ok(context);
+        }
+    }
+
+    Err(format!(
+        "failed to discover a quoted debit iron condor for {underlying_symbol}"
+    ))
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct StrategyLeg {
+    contract: QuotedOptionContract,
+    ratio_qty: u32,
+    side: OrderSide,
+    position_intent: PositionIntent,
+}
+
+fn strategy_leg(
+    contract: QuotedOptionContract,
+    ratio_qty: u32,
+    side: OrderSide,
+    position_intent: PositionIntent,
+) -> StrategyLeg {
+    StrategyLeg {
+        contract,
+        ratio_qty,
+        side,
+        position_intent,
+    }
+}
+
+fn build_debit_mleg_context(
+    underlying_symbol: &str,
+    legs: Vec<StrategyLeg>,
+) -> Result<MultiLegOrderContext, String> {
+    let best_debit = legs
+        .iter()
+        .map(best_case_debit_contribution)
+        .sum::<Decimal>()
+        .round_dp(2);
+    let worst_debit = legs
+        .iter()
+        .map(worst_case_debit_contribution)
+        .sum::<Decimal>()
+        .round_dp(2);
+
+    if worst_debit <= MIN_PRICE {
+        return Err(format!(
+            "discovered multi-leg strategy for {underlying_symbol} was not a net debit"
+        ));
+    }
+
+    let non_marketable_limit_price =
+        conservative_price_below_market(best_debit.max(Decimal::new(1, 2)));
+    let more_conservative_limit_price = conservative_price_below_market(non_marketable_limit_price);
+    let marketable_limit_price = (worst_debit + Decimal::new(10, 2)).round_dp(2);
+
+    Ok(MultiLegOrderContext {
+        underlying_symbol: underlying_symbol.to_owned(),
+        legs: legs
+            .into_iter()
+            .map(|leg| OptionLegRequest {
+                symbol: leg.contract.contract.symbol,
+                ratio_qty: leg.ratio_qty,
+                side: Some(leg.side),
+                position_intent: Some(leg.position_intent),
+            })
+            .collect(),
+        non_marketable_limit_price,
+        more_conservative_limit_price,
+        marketable_limit_price,
+    })
+}
+
+fn best_case_debit_contribution(leg: &StrategyLeg) -> Decimal {
+    let quantity = Decimal::from(leg.ratio_qty);
+    match leg.side {
+        OrderSide::Buy => leg.contract.bid * quantity,
+        OrderSide::Sell => -(leg.contract.ask * quantity),
+        _ => unreachable!("unexpected order side in mleg debit calculation"),
+    }
+}
+
+fn worst_case_debit_contribution(leg: &StrategyLeg) -> Decimal {
+    let quantity = Decimal::from(leg.ratio_qty);
+    match leg.side {
+        OrderSide::Buy => leg.contract.ask * quantity,
+        OrderSide::Sell => -(leg.contract.bid * quantity),
+        _ => unreachable!("unexpected order side in mleg debit calculation"),
+    }
+}
+
+fn group_by_expiration(
+    contracts: Vec<QuotedOptionContract>,
+) -> Vec<(String, Vec<QuotedOptionContract>)> {
+    let mut grouped = HashMap::<String, Vec<QuotedOptionContract>>::new();
+    for contract in contracts {
+        grouped
+            .entry(contract.contract.expiration_date.clone())
+            .or_default()
+            .push(contract);
+    }
+
+    let mut grouped = grouped.into_iter().collect::<Vec<_>>();
+    grouped.sort_by(|lhs, rhs| lhs.0.cmp(&rhs.0));
+    grouped
+}
+
+fn sort_by_strike(contracts: &mut [QuotedOptionContract]) {
+    contracts.sort_by(|lhs, rhs| {
+        lhs.contract
+            .strike_price
+            .partial_cmp(&rhs.contract.strike_price)
+            .expect("option strikes should always be comparable")
+    });
+}
+
+fn strike_window(spot: Decimal, bps_offset: i64) -> Decimal {
+    let multiplier = Decimal::new(10_000 + bps_offset, 4);
+    (spot * multiplier).round_dp(2)
+}
+
+fn decimal_from_market_data(value: f64) -> Option<Decimal> {
+    Decimal::from_str(&value.to_string()).ok()
 }
 
 fn is_terminal_status(status: OrderStatus) -> bool {
