@@ -43,7 +43,12 @@ fn public_api_exposes_account_assets_calendar_clock_and_options_contracts_types_
     let _ = client.calendar();
     let _ = client.clock();
     let _ = client.options_contracts();
-    let _ = Account::default();
+    let account = Account::default();
+    let _: Option<Decimal> = account.cash.clone();
+    let _: Option<Decimal> = account.buying_power.clone();
+    let _: fn(Asset) -> Option<Decimal> = |asset| asset.maintenance_margin_requirement.clone();
+    let _: fn(Asset) -> Option<Decimal> = |asset| asset.margin_requirement_long.clone();
+    let _: fn(Asset) -> Option<Decimal> = |asset| asset.margin_requirement_short.clone();
     let _: Option<Asset> = None;
     let _: Option<ListResponse> = None;
     let _: Option<OptionContract> = None;
@@ -90,6 +95,19 @@ fn options_contracts_client_debug_does_not_expose_credentials() {
         .expect("client should build");
 
     let debug = format!("{:?}", client.options_contracts());
+
+    assert_debug_redacts(&debug);
+}
+
+#[test]
+fn clock_client_debug_does_not_expose_credentials() {
+    let client = Client::builder()
+        .api_key(API_KEY_SENTINEL)
+        .secret_key(SECRET_KEY_SENTINEL)
+        .build()
+        .expect("client should build");
+
+    let debug = format!("{:?}", client.clock());
 
     assert_debug_redacts(&debug);
 }
