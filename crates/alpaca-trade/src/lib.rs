@@ -7,6 +7,7 @@ pub mod clock;
 mod common;
 mod error;
 pub mod observer;
+pub mod options_contracts;
 pub mod retry;
 mod transport;
 

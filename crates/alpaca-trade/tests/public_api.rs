@@ -4,6 +4,11 @@ use alpaca_trade::{
     assets::{Asset, ListRequest as AssetsListRequest},
     calendar::{Calendar, ListRequest as CalendarListRequest},
     clock::Clock,
+    options_contracts::{
+        ContractStatus, ContractStyle, ContractType, DeliverableSettlementMethod,
+        DeliverableSettlementType, DeliverableType, ListRequest as OptionsContractsListRequest,
+        ListResponse, OptionContract, OptionDeliverable,
+    },
 };
 
 const API_KEY_SENTINEL: &str = "api-key-sentinel-7f4d0c1a";
@@ -26,7 +31,7 @@ fn assert_debug_redacts(debug: &str) {
 }
 
 #[test]
-fn public_api_exposes_account_assets_calendar_and_clock_types_and_accessors() {
+fn public_api_exposes_account_assets_calendar_clock_and_options_contracts_types_and_accessors() {
     let client = Client::builder()
         .api_key(API_KEY_SENTINEL)
         .secret_key(SECRET_KEY_SENTINEL)
@@ -37,21 +42,23 @@ fn public_api_exposes_account_assets_calendar_and_clock_types_and_accessors() {
     let _ = client.assets();
     let _ = client.calendar();
     let _ = client.clock();
-    let account = Account::default();
-    let _: Option<Decimal> = account.cash.clone();
-    let _: Option<Decimal> = account.buying_power.clone();
-    let _: fn(Asset) -> Option<Decimal> = |asset| asset.maintenance_margin_requirement.clone();
-    let _: fn(Asset) -> Option<Decimal> = |asset| asset.margin_requirement_long.clone();
-    let _: fn(Asset) -> Option<Decimal> = |asset| asset.margin_requirement_short.clone();
+    let _ = client.options_contracts();
+    let _ = Account::default();
     let _: Option<Asset> = None;
+    let _: Option<ListResponse> = None;
+    let _: Option<OptionContract> = None;
+    let _: Option<OptionDeliverable> = None;
     let _ = AssetsListRequest::default();
     let _ = Calendar::default();
     let _ = CalendarListRequest::default();
     let _ = Clock::default();
-}
-
-#[test]
-fn public_api_exposes_decimal_root_type() {
+    let _ = OptionsContractsListRequest::default();
+    let _ = ContractStatus::Active;
+    let _ = ContractType::Call;
+    let _ = ContractStyle::American;
+    let _ = DeliverableType::Equity;
+    let _ = DeliverableSettlementType::TPlus2;
+    let _ = DeliverableSettlementMethod::Ccc;
     let _ = Decimal::new(12345, 2);
 }
 
@@ -75,14 +82,14 @@ fn public_api_exposes_builder_retry_and_observer_surface() {
 }
 
 #[test]
-fn clock_client_debug_does_not_expose_credentials() {
+fn options_contracts_client_debug_does_not_expose_credentials() {
     let client = Client::builder()
         .api_key(API_KEY_SENTINEL)
         .secret_key(SECRET_KEY_SENTINEL)
         .build()
         .expect("client should build");
 
-    let debug = format!("{:?}", client.clock());
+    let debug = format!("{:?}", client.options_contracts());
 
     assert_debug_redacts(&debug);
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.6 - 2026-04-06
+
+- Add the public `options_contracts()` entrypoint and the first typed mirror request skeleton.
+- Mirror the current official list query surface for options contracts, including `show_deliverables` and `ppind`.
+- Add fail-fast request shaping for empty `underlying_symbols`, whitespace-padded text filters, and out-of-range limits.
+
 ## 0.6.5 - 2026-04-06
 
 - Reject whitespace-padded required text and path identifiers instead of silently trimming them before request construction.

@@ -12,6 +12,7 @@ use crate::calendar::CalendarClient;
 use crate::clock::ClockClient;
 use crate::error::Error;
 use crate::observer::{NoopObserver, Observer};
+use crate::options_contracts::OptionContractsClient;
 use crate::retry::RetryPolicy;
 use crate::transport::http::HttpClient;
 
@@ -98,6 +99,10 @@ impl Client {
 
     pub fn clock(&self) -> ClockClient {
         ClockClient::new(Arc::clone(&self.inner))
+    }
+
+    pub fn options_contracts(&self) -> OptionContractsClient {
+        OptionContractsClient::new(Arc::clone(&self.inner))
     }
 }
 
