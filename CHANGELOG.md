@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.3 - 2026-04-05
+
+- Add a crate-level examples baseline with `client_builder`, `account_get`, and `assets_list`.
+- Standardize the examples on the official Alpaca credential environment variables and explicit `paper()` setup.
+- Keep the examples intentionally thin so they stay copy-pasteable before more resource families land.
+
 ## 0.6.2 - 2026-04-05
 
 - Add `tests/request_validation.rs` as the centralized fail-fast regression entry point for request-shaping guardrails.

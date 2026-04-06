@@ -1,3 +1,4 @@
+use alpaca_trade::assets::ListRequest;
 use alpaca_trade::Client;
 
 fn authenticated_client() -> Result<Client, Box<dyn std::error::Error>> {
@@ -16,7 +17,19 @@ fn authenticated_client() -> Result<Client, Box<dyn std::error::Error>> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = authenticated_client()?;
-    let account = client.account().get().await?;
-    println!("{:#?}", account);
+    let assets = client
+        .assets()
+        .list(ListRequest {
+            status: Some("active".to_owned()),
+            asset_class: Some("us_equity".to_owned()),
+            exchange: Some("NASDAQ".to_owned()),
+            attributes: Some(vec!["has_options".to_owned()]),
+        })
+        .await?;
+
+    for asset in assets.into_iter().take(5) {
+        println!("{} {}", asset.symbol, asset.status);
+    }
+
     Ok(())
 }
