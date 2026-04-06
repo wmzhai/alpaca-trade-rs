@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -8,7 +9,7 @@ use alpaca_data::{Client as DataClient, options};
 use alpaca_trade::Client;
 use alpaca_trade::calendar::ListRequest as CalendarListRequest;
 use alpaca_trade::options_contracts::{
-    ContractStatus, ContractType, ListRequest as OptionsContractsListRequest, OptionContract,
+    ContractStatus, ContractStyle, ContractType, OptionContract,
 };
 use alpaca_trade::orders::{OptionLegRequest, Order, OrderSide, OrderStatus, PositionIntent};
 use alpaca_trade::{Decimal, Error};
@@ -25,9 +26,10 @@ const DEDICATED_ORDERS_TEST_ACCOUNT_ENV: &str = "ALPACA_TRADE_ORDERS_TEST_ACCOUN
 const MIN_PRICE: Decimal = Decimal::ZERO;
 const OPTION_DISCOVERY_LOOKAHEAD_DAYS: u64 = 21;
 const OPTION_DISCOVERY_STRIKE_WINDOW_BPS: i64 = 750;
-const OPTION_SNAPSHOT_BATCH_SIZE: usize = 100;
 static CLIENT_ORDER_COUNTER: AtomicU64 = AtomicU64::new(1);
 static ORDERS_MUTATING_TEST_MUTEX: Mutex<()> = Mutex::const_new(());
+static OPTION_UNIVERSE_CACHE: OnceLock<Mutex<HashMap<String, CachedOptionUniverse>>> =
+    OnceLock::new();
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OrdersRuntimeMode {
@@ -60,6 +62,7 @@ pub(crate) struct StockPriceContext {
 pub(crate) struct OptionContractContext {
     pub(crate) symbol: String,
     pub(crate) non_marketable_buy_limit_price: Decimal,
+    pub(crate) more_conservative_buy_limit_price: Decimal,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -76,6 +79,20 @@ struct QuotedOptionContract {
     contract: OptionContract,
     bid: Decimal,
     ask: Decimal,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct CachedOptionUniverse {
+    spot: Decimal,
+    quoted_contracts: Vec<QuotedOptionContract>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ParsedOptionSymbol {
+    underlying_symbol: String,
+    expiration_date: String,
+    contract_type: ContractType,
+    strike_price: Decimal,
 }
 
 impl CleanupTracker {
@@ -198,13 +215,13 @@ pub(crate) async fn orders_test_context() -> OrdersTestContext {
             "orders mutating tests: runtime mode resolved to Mock; using alpaca-trade-mock fallback because dedicated Paper mutating coverage is unavailable without {}=1 during market hours",
             DEDICATED_ORDERS_TEST_ACCOUNT_ENV,
         );
-        return build_mock_test_context(Some(&trade_client), Some(&data_client)).await;
+        return build_mock_test_context(Some(&data_client)).await;
     }
 
     eprintln!(
         "orders mutating tests: credentials unavailable; using alpaca-trade-mock fallback runtime"
     );
-    build_mock_test_context(None, None).await
+    build_mock_test_context(None).await
 }
 
 pub(crate) async fn detect_orders_runtime_mode(client: &Client) -> OrdersRuntimeMode {
@@ -272,165 +289,61 @@ pub(crate) async fn discover_option_contract(
     context: &OrdersTestContext,
     underlying_symbol: &str,
 ) -> Result<OptionContractContext, String> {
-    if context.is_mock() {
-        let snapshot = context
-            .market_snapshot
-            .as_ref()
-            .ok_or_else(|| "mock context is missing market snapshot".to_owned())?;
-        let symbol = snapshot.default_option_symbol().to_owned();
-        return Ok(OptionContractContext {
-            symbol: symbol.clone(),
-            non_marketable_buy_limit_price: conservative_price_below_market(
-                snapshot.instrument(&symbol).ask,
-            ),
+    if let Some(data_client) = context.data_client.as_ref() {
+        let universe = load_cached_option_universe(data_client, underlying_symbol).await?;
+        return best_option_candidate_from_quotes(&universe.quoted_contracts).ok_or_else(|| {
+            format!("no quoted option contract snapshot was available for {underlying_symbol}")
         });
     }
 
-    let data_client = context
-        .data_client
+    let snapshot = context
+        .market_snapshot
         .as_ref()
-        .ok_or_else(|| "paper context is missing data client".to_owned())?;
-    discover_live_option_contract(&context.trade_client, data_client, underlying_symbol).await
+        .ok_or_else(|| "mock context is missing market snapshot".to_owned())?;
+    let symbol = snapshot
+        .default_option_symbol()
+        .ok_or_else(|| "mock context is missing dynamically discovered option symbols".to_owned())?
+        .to_owned();
+    Ok(OptionContractContext {
+        symbol: symbol.clone(),
+        non_marketable_buy_limit_price: conservative_price_below_market(
+            snapshot.instrument(&symbol).ask,
+        ),
+        more_conservative_buy_limit_price: conservative_price_below_market(
+            conservative_price_below_market(snapshot.instrument(&symbol).ask),
+        ),
+    })
 }
 
 pub(crate) async fn discover_mleg_call_spread(
     context: &OrdersTestContext,
     underlying_symbol: &str,
 ) -> Result<MultiLegOrderContext, String> {
-    let data_client = context
-        .data_client
-        .as_ref()
-        .ok_or_else(|| "paper context is missing data client".to_owned())?;
-    discover_live_mleg_call_spread(&context.trade_client, data_client, underlying_symbol).await
+    let universe = discover_option_universe(context, underlying_symbol).await?;
+    let calls = contracts_for_type(&universe.quoted_contracts, ContractType::Call);
+
+    find_call_spread(underlying_symbol, universe.spot, calls)
 }
 
 pub(crate) async fn discover_mleg_put_spread(
     context: &OrdersTestContext,
     underlying_symbol: &str,
 ) -> Result<MultiLegOrderContext, String> {
-    let data_client = context
-        .data_client
-        .as_ref()
-        .ok_or_else(|| "paper context is missing data client".to_owned())?;
-    discover_live_mleg_put_spread(&context.trade_client, data_client, underlying_symbol).await
+    let universe = discover_option_universe(context, underlying_symbol).await?;
+    let puts = contracts_for_type(&universe.quoted_contracts, ContractType::Put);
+
+    find_put_spread(underlying_symbol, universe.spot, puts)
 }
 
 pub(crate) async fn discover_mleg_iron_condor(
     context: &OrdersTestContext,
     underlying_symbol: &str,
 ) -> Result<MultiLegOrderContext, String> {
-    let data_client = context
-        .data_client
-        .as_ref()
-        .ok_or_else(|| "paper context is missing data client".to_owned())?;
-    discover_live_mleg_iron_condor(&context.trade_client, data_client, underlying_symbol).await
-}
+    let universe = discover_option_universe(context, underlying_symbol).await?;
+    let puts = contracts_for_type(&universe.quoted_contracts, ContractType::Put);
+    let calls = contracts_for_type(&universe.quoted_contracts, ContractType::Call);
 
-async fn discover_live_option_contract(
-    trade_client: &Client,
-    data_client: &DataClient,
-    underlying_symbol: &str,
-) -> Result<OptionContractContext, String> {
-    let contracts = trade_client
-        .options_contracts()
-        .list(OptionsContractsListRequest {
-            underlying_symbols: Some(vec![underlying_symbol.to_owned()]),
-            status: Some(ContractStatus::Active),
-            limit: Some(50),
-            ..OptionsContractsListRequest::default()
-        })
-        .await
-        .map_err(|error| format!("options_contracts list failed: {error}"))?;
-
-    let tradable_contracts = contracts
-        .option_contracts
-        .into_iter()
-        .filter(|contract| contract.tradable)
-        .collect::<Vec<_>>();
-    if tradable_contracts.is_empty() {
-        return Err(format!(
-            "no active tradable option contracts were returned for {underlying_symbol}"
-        ));
-    }
-
-    let symbols = tradable_contracts
-        .iter()
-        .map(|contract| contract.symbol.clone())
-        .collect::<Vec<_>>();
-    let snapshots = data_client
-        .options()
-        .snapshots(options::SnapshotsRequest {
-            symbols,
-            ..options::SnapshotsRequest::default()
-        })
-        .await
-        .map_err(|error| format!("options snapshots request failed: {error}"))?;
-
-    best_option_candidate(tradable_contracts, snapshots.snapshots).ok_or_else(|| {
-        format!("no quoted option contract snapshot was available for {underlying_symbol}")
-    })
-}
-
-async fn discover_live_mleg_call_spread(
-    trade_client: &Client,
-    data_client: &DataClient,
-    underlying_symbol: &str,
-) -> Result<MultiLegOrderContext, String> {
-    let spot = latest_stock_ask(data_client, underlying_symbol).await?;
-    let calls = discover_quoted_contracts(
-        trade_client,
-        data_client,
-        underlying_symbol,
-        ContractType::Call,
-        spot,
-    )
-    .await?;
-
-    find_call_spread(underlying_symbol, spot, calls)
-}
-
-async fn discover_live_mleg_put_spread(
-    trade_client: &Client,
-    data_client: &DataClient,
-    underlying_symbol: &str,
-) -> Result<MultiLegOrderContext, String> {
-    let spot = latest_stock_ask(data_client, underlying_symbol).await?;
-    let puts = discover_quoted_contracts(
-        trade_client,
-        data_client,
-        underlying_symbol,
-        ContractType::Put,
-        spot,
-    )
-    .await?;
-
-    find_put_spread(underlying_symbol, spot, puts)
-}
-
-async fn discover_live_mleg_iron_condor(
-    trade_client: &Client,
-    data_client: &DataClient,
-    underlying_symbol: &str,
-) -> Result<MultiLegOrderContext, String> {
-    let spot = latest_stock_ask(data_client, underlying_symbol).await?;
-    let puts = discover_quoted_contracts(
-        trade_client,
-        data_client,
-        underlying_symbol,
-        ContractType::Put,
-        spot,
-    )
-    .await?;
-    let calls = discover_quoted_contracts(
-        trade_client,
-        data_client,
-        underlying_symbol,
-        ContractType::Call,
-        spot,
-    )
-    .await?;
-
-    find_iron_condor(underlying_symbol, spot, puts, calls)
+    find_iron_condor(underlying_symbol, universe.spot, puts, calls)
 }
 
 pub(crate) async fn wait_for_order_terminal_state(
@@ -549,11 +462,8 @@ async fn latest_stock_ask(data_client: &DataClient, symbol: &str) -> Result<Deci
         .map(|(_, ask)| ask)
 }
 
-async fn build_mock_test_context(
-    trade_client: Option<&Client>,
-    data_client: Option<&DataClient>,
-) -> OrdersTestContext {
-    let market_snapshot = build_mock_market_snapshot(trade_client, data_client).await;
+async fn build_mock_test_context(data_client: Option<&DataClient>) -> OrdersTestContext {
+    let market_snapshot = build_mock_market_snapshot(data_client).await;
     let server = spawn_test_server_with_market_snapshot(market_snapshot.clone()).await;
     let client = Client::builder()
         .api_key("mock-api-key")
@@ -571,10 +481,7 @@ async fn build_mock_test_context(
     }
 }
 
-async fn build_mock_market_snapshot(
-    trade_client: Option<&Client>,
-    data_client: Option<&DataClient>,
-) -> OrdersMarketSnapshot {
+async fn build_mock_market_snapshot(data_client: Option<&DataClient>) -> OrdersMarketSnapshot {
     let mut snapshot = OrdersMarketSnapshot::default();
 
     if let Some(data_client) = data_client {
@@ -584,170 +491,149 @@ async fn build_mock_market_snapshot(
         }
     }
 
-    if let (Some(trade_client), Some(data_client)) = (trade_client, data_client) {
-        if let Ok(contract) =
-            discover_live_option_contract(trade_client, data_client, stock_test_symbol()).await
-        {
-            let ask = (contract.non_marketable_buy_limit_price * Decimal::new(2, 0))
-                .max(Decimal::new(2, 2))
-                .round_dp(2);
-            snapshot = snapshot.with_instrument(
-                contract.symbol,
-                InstrumentSnapshot::option(contract.non_marketable_buy_limit_price, ask),
-            );
+    if let Some(data_client) = data_client {
+        if let Ok(universe) = load_cached_option_universe(data_client, stock_test_symbol()).await {
+            for contract in universe.quoted_contracts {
+                snapshot = snapshot.with_instrument(
+                    contract.contract.symbol,
+                    InstrumentSnapshot::option(contract.bid, contract.ask),
+                );
+            }
         }
     }
 
     snapshot
 }
 
-fn best_option_candidate(
-    contracts: Vec<alpaca_trade::options_contracts::OptionContract>,
-    snapshots: HashMap<String, alpaca_data::options::Snapshot>,
+fn best_option_candidate_from_quotes(
+    contracts: &[QuotedOptionContract],
 ) -> Option<OptionContractContext> {
-    contracts
-        .into_iter()
-        .filter_map(|contract| {
-            let snapshot = snapshots.get(&contract.symbol)?;
-            let ask = snapshot
-                .latestQuote
-                .as_ref()
-                .and_then(|quote| quote.ap)
-                .or_else(|| snapshot.latestTrade.as_ref().and_then(|trade| trade.p))
-                .and_then(|value| Decimal::from_str(&value.to_string()).ok())?;
-            if ask <= MIN_PRICE {
-                return None;
-            }
+    let preferred_min_ask = Decimal::new(5, 2);
+    let candidate = contracts
+        .iter()
+        .filter(|contract| contract.ask >= preferred_min_ask)
+        .min_by_key(|contract| contract.ask)
+        .or_else(|| {
+            contracts
+                .iter()
+                .filter(|contract| contract.ask > MIN_PRICE)
+                .min_by_key(|contract| contract.ask)
+        })?;
 
-            Some((contract.symbol, ask))
-        })
-        .min_by_key(|(_, ask)| *ask)
-        .map(|(symbol, ask)| OptionContractContext {
-            symbol,
-            non_marketable_buy_limit_price: conservative_price_below_market(ask),
-        })
+    Some(OptionContractContext {
+        symbol: candidate.contract.symbol.clone(),
+        non_marketable_buy_limit_price: conservative_price_below_market(candidate.ask),
+        more_conservative_buy_limit_price: conservative_price_below_market(
+            conservative_price_below_market(candidate.ask),
+        ),
+    })
 }
 
-async fn discover_quoted_contracts(
-    trade_client: &Client,
+fn option_universe_cache() -> &'static Mutex<HashMap<String, CachedOptionUniverse>> {
+    OPTION_UNIVERSE_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+async fn discover_option_universe(
+    context: &OrdersTestContext,
+    underlying_symbol: &str,
+) -> Result<CachedOptionUniverse, String> {
+    let data_client = context
+        .data_client
+        .as_ref()
+        .ok_or_else(|| "option discovery requires alpaca-data credentials".to_owned())?;
+    load_cached_option_universe(data_client, underlying_symbol).await
+}
+
+async fn load_cached_option_universe(
     data_client: &DataClient,
     underlying_symbol: &str,
-    contract_type: ContractType,
-    spot: Decimal,
-) -> Result<Vec<QuotedOptionContract>, String> {
-    let contracts = list_active_tradable_contracts(
-        trade_client,
-        underlying_symbol,
-        contract_type.clone(),
-        strike_window(spot, -OPTION_DISCOVERY_STRIKE_WINDOW_BPS),
-        strike_window(spot, OPTION_DISCOVERY_STRIKE_WINDOW_BPS),
-    )
-    .await?;
-    let snapshots = option_snapshots_by_symbol(
-        data_client,
-        contracts
-            .iter()
-            .map(|contract| contract.symbol.clone())
-            .collect::<Vec<_>>(),
-    )
-    .await?;
-
-    let quoted = contracts
-        .into_iter()
-        .filter_map(|contract| quoted_contract(contract, &snapshots))
-        .collect::<Vec<_>>();
-
-    if quoted.is_empty() {
-        return Err(format!(
-            "no quoted {:?} contracts were available for {underlying_symbol}",
-            contract_type
-        ));
+) -> Result<CachedOptionUniverse, String> {
+    {
+        let cache = option_universe_cache().lock().await;
+        if let Some(cached) = cache.get(underlying_symbol).cloned() {
+            return Ok(cached);
+        }
     }
 
-    Ok(quoted)
+    let loaded = fetch_option_universe(data_client, underlying_symbol).await?;
+    let mut cache = option_universe_cache().lock().await;
+    let cached = cache
+        .entry(underlying_symbol.to_owned())
+        .or_insert_with(|| loaded.clone())
+        .clone();
+    Ok(cached)
 }
 
-async fn list_active_tradable_contracts(
-    trade_client: &Client,
+async fn fetch_option_universe(
+    data_client: &DataClient,
     underlying_symbol: &str,
-    contract_type: ContractType,
-    strike_price_gte: Decimal,
-    strike_price_lte: Decimal,
-) -> Result<Vec<OptionContract>, String> {
+) -> Result<CachedOptionUniverse, String> {
+    let spot = latest_stock_ask(data_client, underlying_symbol).await?;
     let today = Utc::now().date_naive();
     let latest_expiration = today
         .checked_add_days(Days::new(OPTION_DISCOVERY_LOOKAHEAD_DAYS))
         .ok_or_else(|| "failed to compute option discovery lookahead window".to_owned())?;
-    let mut page_token = None;
-    let mut contracts = Vec::new();
+    let response = data_client
+        .options()
+        .chain_all(options::ChainRequest {
+            underlying_symbol: underlying_symbol.to_owned(),
+            strike_price_gte: Some(decimal_to_f64(strike_window(
+                spot,
+                -OPTION_DISCOVERY_STRIKE_WINDOW_BPS,
+            ))?),
+            strike_price_lte: Some(decimal_to_f64(strike_window(
+                spot,
+                OPTION_DISCOVERY_STRIKE_WINDOW_BPS,
+            ))?),
+            expiration_date_gte: Some(today.to_string()),
+            expiration_date_lte: Some(latest_expiration.to_string()),
+            limit: Some(1_000),
+            ..options::ChainRequest::default()
+        })
+        .await
+        .map_err(|error| format!("options chain request failed: {error}"))?;
 
-    loop {
-        let response = trade_client
-            .options_contracts()
-            .list(OptionsContractsListRequest {
-                underlying_symbols: Some(vec![underlying_symbol.to_owned()]),
-                status: Some(ContractStatus::Active),
-                expiration_date_gte: Some(today.to_string()),
-                expiration_date_lte: Some(latest_expiration.to_string()),
-                r#type: Some(contract_type.clone()),
-                strike_price_gte: Some(strike_price_gte),
-                strike_price_lte: Some(strike_price_lte),
-                limit: Some(1_000),
-                page_token: page_token.clone(),
-                ..OptionsContractsListRequest::default()
-            })
-            .await
-            .map_err(|error| format!("options_contracts list failed: {error}"))?;
+    let quoted_contracts = response
+        .snapshots
+        .into_iter()
+        .filter_map(|(symbol, snapshot)| {
+            quoted_contract_from_snapshot(underlying_symbol, symbol, snapshot)
+        })
+        .collect::<Vec<_>>();
 
-        contracts.extend(
-            response
-                .option_contracts
-                .into_iter()
-                .filter(|contract| contract.tradable),
-        );
-        page_token = response.next_page_token;
-
-        if page_token.is_none() {
-            break;
-        }
-    }
-
-    if contracts.is_empty() {
+    if quoted_contracts.is_empty() {
         return Err(format!(
-            "no active tradable {:?} contracts were returned for {underlying_symbol}",
-            contract_type
+            "optionchain returned no quoted contracts for {underlying_symbol}"
         ));
     }
 
-    Ok(contracts)
+    Ok(CachedOptionUniverse {
+        spot,
+        quoted_contracts,
+    })
 }
 
-async fn option_snapshots_by_symbol(
-    data_client: &DataClient,
-    symbols: Vec<String>,
-) -> Result<HashMap<String, options::Snapshot>, String> {
-    let mut snapshots = HashMap::new();
+fn contracts_for_type(
+    contracts: &[QuotedOptionContract],
+    contract_type: ContractType,
+) -> Vec<QuotedOptionContract> {
+    contracts
+        .iter()
+        .filter(|contract| contract.contract.r#type == contract_type)
+        .cloned()
+        .collect()
+}
 
-    for batch in symbols.chunks(OPTION_SNAPSHOT_BATCH_SIZE) {
-        let response = data_client
-            .options()
-            .snapshots(options::SnapshotsRequest {
-                symbols: batch.to_vec(),
-                ..options::SnapshotsRequest::default()
-            })
-            .await
-            .map_err(|error| format!("options snapshots request failed: {error}"))?;
-        snapshots.extend(response.snapshots);
+fn quoted_contract_from_snapshot(
+    underlying_symbol: &str,
+    symbol: String,
+    snapshot: options::Snapshot,
+) -> Option<QuotedOptionContract> {
+    let parsed = parse_option_symbol(&symbol)?;
+    if parsed.underlying_symbol != underlying_symbol {
+        return None;
     }
 
-    Ok(snapshots)
-}
-
-fn quoted_contract(
-    contract: OptionContract,
-    snapshots: &HashMap<String, options::Snapshot>,
-) -> Option<QuotedOptionContract> {
-    let snapshot = snapshots.get(&contract.symbol)?;
     let latest_trade_price = snapshot
         .latestTrade
         .as_ref()
@@ -777,7 +663,60 @@ fn quoted_contract(
         return None;
     }
 
-    Some(QuotedOptionContract { contract, bid, ask })
+    Some(QuotedOptionContract {
+        contract: synthetic_option_contract(&symbol, parsed),
+        bid,
+        ask,
+    })
+}
+
+fn parse_option_symbol(symbol: &str) -> Option<ParsedOptionSymbol> {
+    let root_len = symbol.len().checked_sub(15)?;
+    let underlying_symbol = symbol.get(..root_len)?.trim().to_owned();
+    if underlying_symbol.is_empty() {
+        return None;
+    }
+
+    let date = symbol.get(root_len..root_len + 6)?;
+    let contract_type = match symbol.get(root_len + 6..root_len + 7)? {
+        "C" => ContractType::Call,
+        "P" => ContractType::Put,
+        _ => return None,
+    };
+    let strike = symbol.get(root_len + 7..)?;
+    let strike_price = Decimal::from_str(strike).ok()? / Decimal::new(1000, 0);
+
+    Some(ParsedOptionSymbol {
+        underlying_symbol,
+        expiration_date: format!("20{}-{}-{}", &date[0..2], &date[2..4], &date[4..6]),
+        contract_type,
+        strike_price,
+    })
+}
+
+fn synthetic_option_contract(symbol: &str, parsed: ParsedOptionSymbol) -> OptionContract {
+    serde_json::from_value(serde_json::json!({
+        "id": symbol,
+        "symbol": symbol,
+        "name": symbol,
+        "status": ContractStatus::Active,
+        "tradable": true,
+        "expiration_date": parsed.expiration_date,
+        "root_symbol": parsed.underlying_symbol,
+        "underlying_symbol": parsed.underlying_symbol,
+        "underlying_asset_id": format!("optionchain-{symbol}"),
+        "type": parsed.contract_type,
+        "style": ContractStyle::American,
+        "strike_price": parsed.strike_price,
+        "multiplier": Decimal::new(100, 0),
+        "size": Decimal::new(100, 0),
+        "open_interest": null,
+        "open_interest_date": null,
+        "close_price": null,
+        "close_price_date": null,
+        "deliverables": null,
+    }))
+    .expect("synthetic option contract should deserialize")
 }
 
 fn find_call_spread(
@@ -1089,6 +1028,13 @@ fn strike_window(spot: Decimal, bps_offset: i64) -> Decimal {
     (spot * multiplier).round_dp(2)
 }
 
+fn decimal_to_f64(value: Decimal) -> Result<f64, String> {
+    value
+        .to_string()
+        .parse::<f64>()
+        .map_err(|error| format!("failed to convert decimal {value} into f64: {error}"))
+}
+
 fn decimal_from_market_data(value: f64) -> Option<Decimal> {
     Decimal::from_str(&value.to_string()).ok()
 }
@@ -1123,4 +1069,63 @@ fn sanitize_client_order_component(value: &str) -> String {
     }
 
     sanitized.trim_matches('-').to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn quoted_contract(symbol: &str, bid: &str, ask: &str) -> QuotedOptionContract {
+        QuotedOptionContract {
+            contract: synthetic_option_contract(
+                symbol,
+                parse_option_symbol(symbol).expect("test symbol should parse"),
+            ),
+            bid: Decimal::from_str(bid).expect("bid literal should parse"),
+            ask: Decimal::from_str(ask).expect("ask literal should parse"),
+        }
+    }
+
+    #[test]
+    fn parse_option_symbol_extracts_occ_metadata() {
+        let parsed =
+            parse_option_symbol("SPY260417C00550000").expect("occ option symbol should parse");
+
+        assert_eq!(parsed.underlying_symbol, "SPY");
+        assert_eq!(parsed.expiration_date, "2026-04-17");
+        assert_eq!(parsed.contract_type, ContractType::Call);
+        assert_eq!(parsed.strike_price, Decimal::new(550, 0));
+    }
+
+    #[test]
+    fn best_option_candidate_prefers_quotes_above_minimum_floor() {
+        let selected = best_option_candidate_from_quotes(&[
+            quoted_contract("SPY260417C00550000", "0.01", "0.02"),
+            quoted_contract("SPY260417C00555000", "0.05", "0.06"),
+        ])
+        .expect("candidate should be selected");
+
+        assert_eq!(selected.symbol, "SPY260417C00555000");
+        assert_eq!(selected.non_marketable_buy_limit_price, Decimal::new(3, 2));
+        assert_eq!(
+            selected.more_conservative_buy_limit_price,
+            Decimal::new(2, 2)
+        );
+    }
+
+    #[test]
+    fn best_option_candidate_falls_back_when_only_micro_quotes_exist() {
+        let selected = best_option_candidate_from_quotes(&[
+            quoted_contract("SPY260417P00540000", "0.01", "0.02"),
+            quoted_contract("SPY260417P00545000", "0.02", "0.03"),
+        ])
+        .expect("candidate should be selected");
+
+        assert_eq!(selected.symbol, "SPY260417P00540000");
+        assert_eq!(selected.non_marketable_buy_limit_price, Decimal::new(1, 2));
+        assert_eq!(
+            selected.more_conservative_buy_limit_price,
+            Decimal::new(1, 2)
+        );
+    }
 }

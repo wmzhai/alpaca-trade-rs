@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.3 - 2026-04-06
+
+- Drive mock `orders` fills from live `alpaca-data` quotes and apply midpoint-based execution rules across stocks, single-leg options, and net multi-leg option combos, with the seeded in-memory snapshot kept only as a fallback when live data is unavailable.
+- Align mock replace behavior with observed Alpaca Paper order shapes by returning new replacement ids, preserving `replaces`/`replaced_by` links, and propagating replacement and cancel transitions down to nested `mleg` child legs.
+- Re-enable full mock `orders_mutating` multi-leg coverage with dynamically discovered `optionchain` contracts for call-spread, put-spread, and iron-condor flows, and add mock route tests that exercise the same create/get/list/replace/cancel semantics.
+
 ## 0.8.2 - 2026-04-06
 
 - Add typed multi-leg `orders` request/response support for integer `ratio_qty` values serialized as the official string contract, together with fail-fast `mleg` validation for leg count and simplest-ratio semantics.

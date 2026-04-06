@@ -406,18 +406,16 @@ async fn orders_mutating_option_limit_create_get_replace_cancel_and_lookup_by_cl
             &[OrderStatus::New, OrderStatus::Accepted],
         )
         .await?;
-        let replacement_limit_price = (contract.non_marketable_buy_limit_price
-            / alpaca_trade::Decimal::new(2, 0))
-        .round_dp(2)
-        .max(alpaca_trade::Decimal::new(1, 2));
-
+        let replacement_client_order_id =
+            context.next_client_order_id("option-limit", "replacement");
         let replaced = context
             .trade_client
             .orders()
             .replace(
                 &replaceable.id,
                 alpaca_trade::orders::ReplaceRequest {
-                    limit_price: Some(replacement_limit_price),
+                    limit_price: Some(contract.more_conservative_buy_limit_price),
+                    client_order_id: Some(replacement_client_order_id.clone()),
                     ..alpaca_trade::orders::ReplaceRequest::default()
                 },
             )
@@ -506,10 +504,6 @@ async fn orders_mutating_mleg_call_spread_limit_create_get_replace_cancel_and_lo
  {
     let _guard = orders_test_lock().await;
     let context = orders_test_context().await;
-    if context.is_mock() {
-        eprintln!("skipping mleg call spread live test: dedicated Paper runtime is unavailable");
-        return;
-    }
 
     let mut cleanup = CleanupTracker::new(false);
     let result: Result<(), alpaca_trade::Error> = async {
@@ -529,10 +523,6 @@ async fn orders_mutating_mleg_call_spread_limit_create_get_replace_cancel_and_lo
 async fn orders_mutating_mleg_put_spread_marketable_limit_reaches_terminal_state() {
     let _guard = orders_test_lock().await;
     let context = orders_test_context().await;
-    if context.is_mock() {
-        eprintln!("skipping mleg put spread live test: dedicated Paper runtime is unavailable");
-        return;
-    }
 
     let mut cleanup = CleanupTracker::new(false);
     let result: Result<(), alpaca_trade::Error> = async {
@@ -552,10 +542,6 @@ async fn orders_mutating_mleg_put_spread_marketable_limit_reaches_terminal_state
 async fn orders_mutating_mleg_iron_condor_marketable_limit_reaches_terminal_state() {
     let _guard = orders_test_lock().await;
     let context = orders_test_context().await;
-    if context.is_mock() {
-        eprintln!("skipping mleg iron condor live test: dedicated Paper runtime is unavailable");
-        return;
-    }
 
     let mut cleanup = CleanupTracker::new(false);
     let result: Result<(), alpaca_trade::Error> = async {

@@ -6,9 +6,7 @@ pub mod state;
 use tokio::{net::TcpListener, task::JoinHandle};
 
 pub use app::{build_app, build_app_with_market_snapshot};
-pub use state::{
-    DEFAULT_OPTION_SYMBOL, DEFAULT_STOCK_SYMBOL, InstrumentSnapshot, OrdersMarketSnapshot,
-};
+pub use state::{DEFAULT_STOCK_SYMBOL, InstrumentSnapshot, OrdersMarketSnapshot};
 
 #[derive(Debug)]
 pub struct TestServer {

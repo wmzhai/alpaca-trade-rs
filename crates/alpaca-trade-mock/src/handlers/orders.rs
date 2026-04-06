@@ -2,13 +2,14 @@ use std::str::FromStr;
 
 use alpaca_trade::Decimal;
 use alpaca_trade::orders::{
-    OrderClass, OrderSide, OrderType, PositionIntent, StopLoss, TakeProfit, TimeInForce,
+    OptionLegRequest, OrderClass, OrderSide, OrderType, PositionIntent, StopLoss, TakeProfit,
+    TimeInForce,
 };
 use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 
 use crate::state::{
@@ -98,6 +99,16 @@ pub struct CreateOrderBody {
     order_class: Option<OrderClass>,
     take_profit: Option<TakeProfit>,
     stop_loss: Option<StopLoss>,
+    legs: Option<Vec<OptionLegBody>>,
+    position_intent: Option<PositionIntent>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OptionLegBody {
+    symbol: String,
+    #[serde(deserialize_with = "deserialize_u32")]
+    ratio_qty: u32,
+    side: Option<OrderSide>,
     position_intent: Option<PositionIntent>,
 }
 
@@ -119,24 +130,36 @@ pub async fn orders_create(
     State(state): State<OrdersState>,
     Json(body): Json<CreateOrderBody>,
 ) -> RouteResult<Json<alpaca_trade::orders::Order>> {
-    let order = state.create_order(CreateOrderInput {
-        symbol: body.symbol,
-        qty: body.qty,
-        notional: body.notional,
-        side: body.side,
-        order_type: body.r#type,
-        time_in_force: body.time_in_force,
-        limit_price: body.limit_price,
-        stop_price: body.stop_price,
-        trail_price: body.trail_price,
-        trail_percent: body.trail_percent,
-        extended_hours: body.extended_hours,
-        client_order_id: body.client_order_id,
-        order_class: body.order_class,
-        position_intent: body.position_intent,
-        take_profit: body.take_profit,
-        stop_loss: body.stop_loss,
-    })?;
+    let order = state
+        .create_order(CreateOrderInput {
+            symbol: body.symbol,
+            qty: body.qty,
+            notional: body.notional,
+            side: body.side,
+            order_type: body.r#type,
+            time_in_force: body.time_in_force,
+            limit_price: body.limit_price,
+            stop_price: body.stop_price,
+            trail_price: body.trail_price,
+            trail_percent: body.trail_percent,
+            extended_hours: body.extended_hours,
+            client_order_id: body.client_order_id,
+            order_class: body.order_class,
+            position_intent: body.position_intent,
+            legs: body.legs.map(|legs| {
+                legs.into_iter()
+                    .map(|leg| OptionLegRequest {
+                        symbol: leg.symbol,
+                        ratio_qty: leg.ratio_qty,
+                        side: leg.side,
+                        position_intent: leg.position_intent,
+                    })
+                    .collect()
+            }),
+            take_profit: body.take_profit,
+            stop_loss: body.stop_loss,
+        })
+        .await?;
     Ok(Json(order))
 }
 
@@ -190,17 +213,19 @@ pub async fn orders_replace(
     Path(order_id): Path<String>,
     Json(body): Json<ReplaceOrderBody>,
 ) -> RouteResult<Json<alpaca_trade::orders::Order>> {
-    let order = state.replace_order(
-        &order_id,
-        ReplaceOrderInput {
-            qty: body.qty,
-            time_in_force: body.time_in_force,
-            limit_price: body.limit_price,
-            stop_price: body.stop_price,
-            trail: body.trail,
-            client_order_id: body.client_order_id,
-        },
-    )?;
+    let order = state
+        .replace_order(
+            &order_id,
+            ReplaceOrderInput {
+                qty: body.qty,
+                time_in_force: body.time_in_force,
+                limit_price: body.limit_price,
+                stop_price: body.stop_price,
+                trail: body.trail,
+                client_order_id: body.client_order_id,
+            },
+        )
+        .await?;
     Ok(Json(order))
 }
 
@@ -233,6 +258,23 @@ where
             .map_err(serde::de::Error::custom),
         Some(other) => Err(serde::de::Error::custom(format!(
             "expected decimal string or number, got {other}"
+        ))),
+    }
+}
+
+fn deserialize_u32<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Value::deserialize(deserializer)?;
+    match value {
+        Value::String(value) => value.parse::<u32>().map_err(serde::de::Error::custom),
+        Value::Number(value) => value
+            .to_string()
+            .parse::<u32>()
+            .map_err(serde::de::Error::custom),
+        other => Err(serde::de::Error::custom(format!(
+            "expected u32 string or number, got {other}"
         ))),
     }
 }

@@ -15,9 +15,11 @@ exclude = ["/.agents/**", "/.github/**", "/AGENTS.md", "/docs/superpowers/**", "
 path = "src/lib.rs"
 
 [dependencies]
+alpaca-data.workspace = true
 alpaca-trade = { path = "../alpaca-trade" }
 axum.workspace = true
 chrono.workspace = true
+dotenvy.workspace = true
 parking_lot.workspace = true
 rust_decimal.workspace = true
 serde.workspace = true
