@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.5 - 2026-04-06
+
+- Add credential-gated `orders_mutating` paper coverage for stock and option create/get/lookup/replace/cancel flows on the shared `orders()` API.
+- Reuse `alpaca-data` market data to discover live stock quotes and tradable option contracts without hard-coded price fixtures.
+- Gate real `cancel_all()` coverage behind a dedicated Paper-account marker while keeping the market-open path ready for full mutating validation.
+
 ## 0.7.4 - 2026-04-06
 
 - Add `orders.create`, `orders.replace`, `orders.cancel`, and `orders.cancel_all` on the shared authenticated transport pipeline.
