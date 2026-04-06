@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1 - 2026-04-05
+
+- Refactor the shared pagination helper from an item accumulator into a token-aware request/response contract.
+- Detect repeated `next_page_token` values and clear the terminal token after a successful `collect_all()` merge.
+- Keep the new pagination surface internal-only so Phase 6 can reuse it without exposing premature public stream helpers.
+
 ## 0.6.0 - 2026-04-05
 
 - Breaking: adopt `rust_decimal::Decimal` as the public Rust type for high-precision financial fields in the implemented Trading models.
