@@ -2,20 +2,17 @@ mod support;
 
 use alpaca_trade::orders::{CreateRequest, OrderStatus, OrderType, PositionIntent, TimeInForce};
 use support::orders::{
-    CleanupTracker, cleanup_open_orders, discover_option_contract, paper_test_context,
+    CleanupTracker, cleanup_open_orders, discover_option_contract, orders_test_context,
     stock_price_context, wait_for_order_terminal_state,
 };
 
 #[tokio::test]
 async fn orders_mutating_stock_limit_create_get_replace_cancel_and_lookup_by_client_order_id() {
-    let Some(context) = paper_test_context().await else {
-        eprintln!("skipping orders mutating stock limit test: paper runtime unavailable");
-        return;
-    };
+    let context = orders_test_context().await;
 
     let mut cleanup = CleanupTracker::new(false);
     let result: Result<(), alpaca_trade::Error> = async {
-        let quote = stock_price_context(&context.data_client, "SPY")
+        let quote = stock_price_context(&context, "SPY")
             .await
             .expect("stock quote context should be available");
         let order = context
@@ -65,16 +62,13 @@ async fn orders_mutating_stock_limit_create_get_replace_cancel_and_lookup_by_cli
     }
     .await;
 
-    cleanup_open_orders(&context.trade_client, &cleanup).await;
+    cleanup_open_orders(&context, &cleanup).await;
     result.expect("stock limit order flow should succeed");
 }
 
 #[tokio::test]
 async fn orders_mutating_stock_market_order_reaches_terminal_state() {
-    let Some(context) = paper_test_context().await else {
-        eprintln!("skipping orders mutating stock market test: paper runtime unavailable");
-        return;
-    };
+    let context = orders_test_context().await;
 
     let mut cleanup = CleanupTracker::new(false);
     let result: Result<(), alpaca_trade::Error> = async {
@@ -117,20 +111,17 @@ async fn orders_mutating_stock_market_order_reaches_terminal_state() {
     }
     .await;
 
-    cleanup_open_orders(&context.trade_client, &cleanup).await;
+    cleanup_open_orders(&context, &cleanup).await;
     result.expect("stock market order flow should succeed");
 }
 
 #[tokio::test]
 async fn orders_mutating_option_limit_create_get_cancel_and_lookup_by_client_order_id() {
-    let Some(context) = paper_test_context().await else {
-        eprintln!("skipping orders mutating option limit test: paper runtime unavailable");
-        return;
-    };
+    let context = orders_test_context().await;
 
     let mut cleanup = CleanupTracker::new(false);
     let result: Result<(), alpaca_trade::Error> = async {
-        let contract = discover_option_contract(&context.trade_client, &context.data_client, "SPY")
+        let contract = discover_option_contract(&context, "SPY")
             .await
             .expect("tradable option contract should be discoverable");
         let order = context
@@ -168,20 +159,17 @@ async fn orders_mutating_option_limit_create_get_cancel_and_lookup_by_client_ord
     }
     .await;
 
-    cleanup_open_orders(&context.trade_client, &cleanup).await;
+    cleanup_open_orders(&context, &cleanup).await;
     result.expect("option limit order flow should succeed");
 }
 
 #[tokio::test]
 async fn orders_mutating_option_market_order_reaches_terminal_state() {
-    let Some(context) = paper_test_context().await else {
-        eprintln!("skipping orders mutating option market test: paper runtime unavailable");
-        return;
-    };
+    let context = orders_test_context().await;
 
     let mut cleanup = CleanupTracker::new(false);
     let result: Result<(), alpaca_trade::Error> = async {
-        let contract = discover_option_contract(&context.trade_client, &context.data_client, "SPY")
+        let contract = discover_option_contract(&context, "SPY")
             .await
             .expect("tradable option contract should be discoverable");
         let opened = context
@@ -225,20 +213,17 @@ async fn orders_mutating_option_market_order_reaches_terminal_state() {
     }
     .await;
 
-    cleanup_open_orders(&context.trade_client, &cleanup).await;
+    cleanup_open_orders(&context, &cleanup).await;
     result.expect("option market order flow should succeed");
 }
 
 #[tokio::test]
-async fn orders_mutating_cancel_all_clears_test_orders_when_dedicated_account_is_available() {
-    let Some(context) = paper_test_context().await else {
-        eprintln!("skipping orders mutating cancel_all test: paper runtime unavailable");
-        return;
-    };
+async fn orders_mutating_cancel_all_clears_test_orders_in_active_runtime() {
+    let context = orders_test_context().await;
 
     let mut cleanup = CleanupTracker::new(true);
     let result: Result<(), alpaca_trade::Error> = async {
-        let quote = stock_price_context(&context.data_client, "SPY")
+        let quote = stock_price_context(&context, "SPY")
             .await
             .expect("stock quote context should be available");
 
@@ -266,6 +251,6 @@ async fn orders_mutating_cancel_all_clears_test_orders_when_dedicated_account_is
     }
     .await;
 
-    cleanup_open_orders(&context.trade_client, &cleanup).await;
+    cleanup_open_orders(&context, &cleanup).await;
     result.expect("cancel_all flow should succeed");
 }

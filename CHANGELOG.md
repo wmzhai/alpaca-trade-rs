@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.6 - 2026-04-06
+
+- Add in-memory `alpaca-trade-mock` orders routes, shared state, deterministic fill rules, alias lookup, and batch cancel coverage for non-market-hour regression paths.
+- Switch `orders_mutating` to an automatic runtime context that falls back to the stateful mock server whenever dedicated Paper mutating coverage is unavailable.
+- Reuse available `alpaca-data` inputs to seed the mock fallback market snapshot while keeping route tests deterministic with fixed in-process market data.
+
 ## 0.7.5 - 2026-04-06
 
 - Add credential-gated `orders_mutating` paper coverage for stock and option create/get/lookup/replace/cancel flows on the shared `orders()` API.

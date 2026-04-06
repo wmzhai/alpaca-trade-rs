@@ -1,7 +1,26 @@
 use axum::{Router, routing::get};
 
 use crate::handlers;
+use crate::state::OrdersState;
 
-pub fn build_router() -> Router {
-    Router::new().route("/health", get(handlers::health))
+pub fn build_router(state: OrdersState) -> Router {
+    Router::new()
+        .route("/health", get(handlers::health))
+        .route(
+            "/v2/orders",
+            get(handlers::orders_list)
+                .post(handlers::orders_create)
+                .delete(handlers::orders_cancel_all),
+        )
+        .route(
+            "/v2/orders/{order_id}",
+            get(handlers::orders_get)
+                .patch(handlers::orders_replace)
+                .delete(handlers::orders_cancel),
+        )
+        .route(
+            "/v2/orders:by_client_order_id",
+            get(handlers::orders_get_by_client_order_id),
+        )
+        .with_state(state)
 }
