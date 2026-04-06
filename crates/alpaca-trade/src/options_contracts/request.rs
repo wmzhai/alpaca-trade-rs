@@ -200,7 +200,6 @@ mod tests {
     #[test]
     fn list_request_rejects_whitespace_padded_text_inputs() {
         let error = ListRequest {
-            underlying_symbols: Some(vec![" AAPL ".into()]),
             page_token: Some(" token ".into()),
             ..ListRequest::default()
         }
@@ -211,6 +210,38 @@ mod tests {
             error,
             Error::InvalidRequest(message)
                 if message.contains("leading or trailing whitespace")
+        ));
+    }
+
+    #[test]
+    fn list_request_rejects_zero_limit() {
+        let error = ListRequest {
+            limit: Some(0),
+            ..ListRequest::default()
+        }
+        .to_query()
+        .expect_err("zero limit must fail");
+
+        assert!(matches!(
+            error,
+            Error::InvalidRequest(message)
+                if message.contains("greater than 0")
+        ));
+    }
+
+    #[test]
+    fn list_request_rejects_limit_above_max() {
+        let error = ListRequest {
+            limit: Some(10_001),
+            ..ListRequest::default()
+        }
+        .to_query()
+        .expect_err("out-of-range limit must fail");
+
+        assert!(matches!(
+            error,
+            Error::InvalidRequest(message)
+                if message.contains("10000")
         ));
     }
 

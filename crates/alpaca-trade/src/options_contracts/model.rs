@@ -57,17 +57,20 @@ pub enum DeliverableSettlementMethod {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct ListResponse {
     pub option_contracts: Vec<OptionContract>,
     pub next_page_token: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct OptionContract {
     pub id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct OptionDeliverable {
     pub symbol: String,
 }
