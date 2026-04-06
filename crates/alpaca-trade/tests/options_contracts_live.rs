@@ -37,6 +37,7 @@ async fn options_contracts_live_lists_and_gets_active_contract() {
 
     assert!(!first.symbol.is_empty());
     assert_eq!(first.status, ContractStatus::Active);
+    assert_eq!(first.underlying_symbol, "SPY");
 
     let contract = client
         .options_contracts()

@@ -153,6 +153,20 @@ async fn options_contracts_list_rejects_empty_underlying_symbols_before_transpor
 }
 
 #[tokio::test]
+async fn options_contracts_list_rejects_blank_underlying_symbol_element_before_transport() {
+    let error = auth_client()
+        .options_contracts()
+        .list(ListRequest {
+            underlying_symbols: Some(vec!["   ".into()]),
+            ..ListRequest::default()
+        })
+        .await
+        .expect_err("blank underlying_symbols element should fail before transport");
+
+    assert_public_invalid_request(error, &["underlying_symbols", "must not be blank"]);
+}
+
+#[tokio::test]
 async fn options_contracts_list_rejects_whitespace_padded_inputs_before_transport() {
     let error = auth_client()
         .options_contracts()
