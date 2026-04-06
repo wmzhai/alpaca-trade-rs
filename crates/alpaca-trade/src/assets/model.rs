@@ -1,3 +1,8 @@
+use crate::common::decimal::{
+    deserialize_option_decimal_from_string_or_number as deserialize_decimal,
+    number_contract::serialize_option_decimal as serialize_decimal_number,
+    string_contract::serialize_option_decimal as serialize_decimal_string,
+};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
@@ -18,20 +23,20 @@ pub struct Asset {
     pub cusip: Option<String>,
     #[serde(
         default,
-        deserialize_with = "crate::common::decimal::deserialize_option_decimal_from_string_or_number",
-        serialize_with = "crate::common::decimal::number_contract::serialize_option_decimal"
+        deserialize_with = "deserialize_decimal",
+        serialize_with = "serialize_decimal_number"
     )]
     pub maintenance_margin_requirement: Option<Decimal>,
     #[serde(
         default,
-        deserialize_with = "crate::common::decimal::deserialize_option_decimal_from_string_or_number",
-        serialize_with = "crate::common::decimal::string_contract::serialize_option_decimal"
+        deserialize_with = "deserialize_decimal",
+        serialize_with = "serialize_decimal_string"
     )]
     pub margin_requirement_long: Option<Decimal>,
     #[serde(
         default,
-        deserialize_with = "crate::common::decimal::deserialize_option_decimal_from_string_or_number",
-        serialize_with = "crate::common::decimal::string_contract::serialize_option_decimal"
+        deserialize_with = "deserialize_decimal",
+        serialize_with = "serialize_decimal_string"
     )]
     pub margin_requirement_short: Option<Decimal>,
     pub attributes: Option<Vec<String>>,

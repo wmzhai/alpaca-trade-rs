@@ -25,4 +25,5 @@ async fn account_live_reads_paper_account() {
     assert!(!account.id.is_empty());
     assert!(!account.account_number.is_empty());
     assert!(!account.status.is_empty());
+    assert!(account.cash.is_some());
 }

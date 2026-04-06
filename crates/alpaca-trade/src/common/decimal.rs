@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::str::FromStr;
 
 use rust_decimal::Decimal;
@@ -25,6 +23,7 @@ where
         .map_err(|error| E::custom(format!("invalid decimal value `{raw}`: {error}")))
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn deserialize_decimal_from_string_or_number<'de, D>(
     deserializer: D,
 ) -> Result<Decimal, D::Error>
@@ -48,6 +47,7 @@ where
 pub(crate) mod string_contract {
     use super::*;
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn serialize_decimal<S>(value: &Decimal, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -72,6 +72,7 @@ pub(crate) mod string_contract {
 pub(crate) mod number_contract {
     use super::*;
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn serialize_decimal<S>(value: &Decimal, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -170,6 +171,14 @@ mod tests {
             serde_json::from_str(payload).expect("json number should deserialize");
 
         assert_eq!(decoded.value, Decimal::new(12345, 2));
+    }
+
+    #[test]
+    fn decimal_from_string_or_number_rejects_invalid_string() {
+        let error =
+            serde_json::from_str::<DecimalField>(r#"{"value":"abc"}"#).expect_err("must fail");
+
+        assert!(error.to_string().contains("invalid decimal value `abc`"));
     }
 
     #[test]

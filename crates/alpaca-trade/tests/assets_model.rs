@@ -87,6 +87,73 @@ fn asset_model_deserializes_single_shape_with_optional_fields_missing() {
 }
 
 #[test]
+fn asset_model_accepts_supported_string_and_number_shapes() {
+    let json = r#"
+    {
+      "id": "904837e3-3b76-47ec-b432-046db621571b",
+      "class": "us_equity",
+      "exchange": "NASDAQ",
+      "symbol": "AAPL",
+      "name": "Apple Inc. Common Stock",
+      "status": "active",
+      "tradable": true,
+      "marginable": true,
+      "shortable": true,
+      "easy_to_borrow": true,
+      "fractionable": true,
+      "maintenance_margin_requirement": "30.0",
+      "margin_requirement_long": 30,
+      "margin_requirement_short": 100
+    }
+    "#;
+
+    let asset: Asset = serde_json::from_str(json).expect("json should deserialize");
+
+    assert_eq!(
+        asset.maintenance_margin_requirement,
+        Some(Decimal::from_str("30.0").expect("decimal should parse"))
+    );
+    assert_eq!(
+        asset.margin_requirement_long,
+        Some(Decimal::from_str("30").expect("decimal should parse"))
+    );
+    assert_eq!(
+        asset.margin_requirement_short,
+        Some(Decimal::from_str("100").expect("decimal should parse"))
+    );
+}
+
+#[test]
+fn asset_model_serializes_decimal_fields_with_official_wire_contracts() {
+    let json = r#"
+    {
+      "id": "904837e3-3b76-47ec-b432-046db621571b",
+      "class": "us_equity",
+      "exchange": "NASDAQ",
+      "symbol": "AAPL",
+      "name": "Apple Inc. Common Stock",
+      "status": "active",
+      "tradable": true,
+      "marginable": true,
+      "shortable": true,
+      "easy_to_borrow": true,
+      "fractionable": true,
+      "maintenance_margin_requirement": "30.0",
+      "margin_requirement_long": 30,
+      "margin_requirement_short": 100
+    }
+    "#;
+
+    let asset: Asset = serde_json::from_str(json).expect("json should deserialize");
+    let value = serde_json::to_value(&asset).expect("asset should serialize");
+
+    assert!(value["maintenance_margin_requirement"].is_number());
+    assert_eq!(value["maintenance_margin_requirement"].to_string(), "30.0");
+    assert_eq!(value["margin_requirement_long"], serde_json::json!("30"));
+    assert_eq!(value["margin_requirement_short"], serde_json::json!("100"));
+}
+
+#[test]
 fn asset_model_rejects_missing_required_symbol() {
     let json = r#"
     {

@@ -40,6 +40,9 @@ fn public_api_exposes_account_assets_calendar_and_clock_types_and_accessors() {
     let account = Account::default();
     let _: Option<Decimal> = account.cash.clone();
     let _: Option<Decimal> = account.buying_power.clone();
+    let _: fn(Asset) -> Option<Decimal> = |asset| asset.maintenance_margin_requirement.clone();
+    let _: fn(Asset) -> Option<Decimal> = |asset| asset.margin_requirement_long.clone();
+    let _: fn(Asset) -> Option<Decimal> = |asset| asset.margin_requirement_short.clone();
     let _: Option<Asset> = None;
     let _ = AssetsListRequest::default();
     let _ = Calendar::default();

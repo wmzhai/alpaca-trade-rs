@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0 - 2026-04-05
+
+- Breaking: adopt `rust_decimal::Decimal` as the public Rust type for high-precision financial fields in the implemented Trading models.
+- Re-export `Decimal` from `alpaca_trade` and add shared serde helpers that accept official numeric strings and JSON numbers.
+- Preserve the official Alpaca field names and per-endpoint wire contracts while removing `f64` from the current financial models.
+- Expand regression coverage to pin Decimal parsing and serialization across helper, account, asset, public API, and live smoke paths.
+- Establish the standalone pre-Phase-6 numeric precision baseline before the `options_contracts` resource work begins.
+
 ## 0.5.4 - 2026-04-05
 
 - Document the public Decimal policy in the workspace and crate READMEs.

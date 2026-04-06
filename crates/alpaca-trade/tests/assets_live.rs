@@ -39,4 +39,5 @@ async fn assets_live_reads_paper_assets_list_and_single_asset() {
         .expect("live asset get request should succeed");
 
     assert_eq!(asset.symbol, "AAPL");
+    assert!(asset.margin_requirement_short.is_some());
 }

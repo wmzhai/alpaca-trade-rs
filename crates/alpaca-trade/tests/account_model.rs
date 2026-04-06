@@ -60,6 +60,54 @@ fn account_model_deserializes_official_shape() {
 }
 
 #[test]
+fn account_model_accepts_json_numbers_for_decimal_fields() {
+    let json = r#"
+    {
+      "id": "acct-1",
+      "account_number": "010203ABCD",
+      "status": "ACTIVE",
+      "cash": 100000.00,
+      "buying_power": 262113.632,
+      "multiplier": 4
+    }
+    "#;
+
+    let account: Account = serde_json::from_str(json).expect("json should deserialize");
+
+    assert_eq!(
+        account.cash,
+        Some(Decimal::from_str("100000.00").expect("decimal should parse"))
+    );
+    assert_eq!(
+        account.buying_power,
+        Some(Decimal::from_str("262113.632").expect("decimal should parse"))
+    );
+    assert_eq!(
+        account.multiplier,
+        Some(Decimal::from_str("4").expect("decimal should parse"))
+    );
+}
+
+#[test]
+fn account_model_serializes_decimal_fields_as_strings() {
+    let account = Account {
+        id: "acct-1".to_owned(),
+        account_number: "010203ABCD".to_owned(),
+        status: "ACTIVE".to_owned(),
+        cash: Some(Decimal::from_str("100000.00").expect("decimal should parse")),
+        buying_power: Some(Decimal::from_str("262113.632").expect("decimal should parse")),
+        multiplier: Some(Decimal::from_str("4").expect("decimal should parse")),
+        ..Account::default()
+    };
+
+    let value = serde_json::to_value(&account).expect("account should serialize");
+
+    assert_eq!(value["cash"], serde_json::json!("100000.00"));
+    assert_eq!(value["buying_power"], serde_json::json!("262113.632"));
+    assert_eq!(value["multiplier"], serde_json::json!("4"));
+}
+
+#[test]
 fn account_model_rejects_missing_required_id() {
     let json = r#"
     {
