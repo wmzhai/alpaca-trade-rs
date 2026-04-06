@@ -63,6 +63,17 @@ fn shared_required_text_validation_rejects_blank_underlying_symbol() {
     assert_internal_invalid_request(error, &["underlying_symbol", "must not be blank"]);
 }
 
+#[test]
+fn shared_required_text_validation_rejects_whitespace_padded_underlying_symbol() {
+    let error = internal_validate::required_text("underlying_symbol", " AAPL ")
+        .expect_err("whitespace-padded underlying_symbol should fail validation");
+
+    assert_internal_invalid_request(
+        error,
+        &["underlying_symbol", "leading or trailing whitespace"],
+    );
+}
+
 #[tokio::test]
 async fn assets_get_rejects_blank_symbol_or_asset_id_before_transport() {
     let error = auth_client()
@@ -72,6 +83,20 @@ async fn assets_get_rejects_blank_symbol_or_asset_id_before_transport() {
         .expect_err("blank symbol_or_asset_id should fail before transport");
 
     assert_public_invalid_request(error, &["symbol_or_asset_id", "must not be blank"]);
+}
+
+#[tokio::test]
+async fn assets_get_rejects_whitespace_padded_symbol_or_asset_id_before_transport() {
+    let error = auth_client()
+        .assets()
+        .get(" AAPL ")
+        .await
+        .expect_err("whitespace-padded symbol_or_asset_id should fail before transport");
+
+    assert_public_invalid_request(
+        error,
+        &["symbol_or_asset_id", "leading or trailing whitespace"],
+    );
 }
 
 #[tokio::test]

@@ -233,7 +233,7 @@ async fn asset_get_rejects_invalid_path_segment_before_send() {
         "HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}".to_owned(),
     ]);
 
-    for value in ["AAPL/US", "AAPL%2FUS"] {
+    for value in ["AAPL/US", "AAPL%2FUS", " AAPL ", " AAPL", "AAPL "] {
         let error = Client::builder()
             .api_key("key")
             .secret_key("secret")
@@ -243,7 +243,7 @@ async fn asset_get_rejects_invalid_path_segment_before_send() {
             .assets()
             .get(value)
             .await
-            .expect_err("reserved path characters must fail before send");
+            .expect_err("invalid path segments must fail before send");
 
         match error {
             Error::InvalidRequest(message) => {

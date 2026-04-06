@@ -114,6 +114,21 @@ mod tests {
     }
 
     #[test]
+    fn asset_get_rejects_leading_or_trailing_whitespace_in_path_segments() {
+        for value in [" AAPL", "AAPL ", " AAPL "] {
+            let error = Endpoint::asset_get(value).expect_err("surrounding whitespace should fail");
+
+            match error {
+                Error::InvalidRequest(message) => {
+                    assert!(message.contains("symbol_or_asset_id"));
+                    assert!(message.contains("leading or trailing whitespace"));
+                }
+                other => panic!("expected invalid request error, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
     fn static_endpoint_helpers_preserve_metadata() {
         let account = Endpoint::account_get();
         let clock = Endpoint::clock_get();

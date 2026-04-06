@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.5 - 2026-04-06
+
+- Reject whitespace-padded required text and path identifiers instead of silently trimming them before request construction.
+- Keep `assets.get` mirror-first by failing fast on leading or trailing whitespace before any HTTP request is sent.
+- Extend validation and transport regression coverage for whitespace-padded `underlying_symbol` and `symbol_or_asset_id` inputs.
+
 ## 0.6.4 - 2026-04-05
 
 - Document the crate-level examples entry point in both public READMEs.

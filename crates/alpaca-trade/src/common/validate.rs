@@ -8,22 +8,28 @@ pub(crate) fn required_text(name: &'static str, value: &str) -> Result<String, E
         return Err(Error::InvalidRequest(format!("{name} must not be blank")));
     }
 
-    Ok(trimmed.to_owned())
+    if trimmed != value {
+        return Err(Error::InvalidRequest(format!(
+            "{name} must not contain leading or trailing whitespace"
+        )));
+    }
+
+    Ok(value.to_owned())
 }
 
 #[allow(dead_code)]
 pub(crate) fn required_path_segment(name: &'static str, value: &str) -> Result<String, Error> {
-    let trimmed = required_text(name, value)?;
+    let segment = required_text(name, value)?;
 
-    if trimmed.chars().any(|ch| matches!(ch, '/' | '?' | '#'))
-        || contains_encoded_reserved_path_characters(&trimmed)
+    if segment.chars().any(|ch| matches!(ch, '/' | '?' | '#'))
+        || contains_encoded_reserved_path_characters(&segment)
     {
         return Err(Error::InvalidRequest(format!(
             "{name} must not contain reserved path characters"
         )));
     }
 
-    Ok(trimmed)
+    Ok(segment)
 }
 
 fn contains_encoded_reserved_path_characters(value: &str) -> bool {
@@ -77,6 +83,22 @@ mod tests {
     }
 
     #[test]
+    fn required_text_rejects_leading_or_trailing_whitespace() {
+        for value in [" AAPL", "AAPL ", " AAPL "] {
+            let error = required_text("underlying_symbol", value)
+                .expect_err("leading or trailing whitespace should fail");
+
+            match error {
+                Error::InvalidRequest(message) => {
+                    assert!(message.contains("underlying_symbol"));
+                    assert!(message.contains("leading or trailing whitespace"));
+                }
+                other => panic!("expected invalid request error, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
     fn required_path_segment_rejects_blank_values() {
         let error = required_path_segment("symbol_or_asset_id", "   ")
             .expect_err("blank path segments should fail");
@@ -86,6 +108,22 @@ mod tests {
                 assert!(message.contains("symbol_or_asset_id"));
             }
             other => panic!("expected invalid request error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn required_path_segment_rejects_leading_or_trailing_whitespace() {
+        for value in [" AAPL", "AAPL ", " AAPL "] {
+            let error = required_path_segment("symbol_or_asset_id", value)
+                .expect_err("leading or trailing whitespace should fail");
+
+            match error {
+                Error::InvalidRequest(message) => {
+                    assert!(message.contains("symbol_or_asset_id"));
+                    assert!(message.contains("leading or trailing whitespace"));
+                }
+                other => panic!("expected invalid request error, got {other:?}"),
+            }
         }
     }
 
