@@ -1,5 +1,5 @@
-use alpaca_trade::assets::ListRequest;
 use alpaca_trade::Client;
+use alpaca_trade::assets::ListRequest;
 
 fn authenticated_client() -> Result<Client, Box<dyn std::error::Error>> {
     let api_key = std::env::var("APCA_API_KEY_ID")?;

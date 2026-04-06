@@ -49,8 +49,8 @@ fn assert_internal_invalid_request(error: internal_error::Error, needles: &[&str
 
 #[test]
 fn shared_limit_validation_rejects_zero() {
-    let error = internal_validate::validate_limit(0, 500)
-        .expect_err("zero limit should fail validation");
+    let error =
+        internal_validate::validate_limit(0, 500).expect_err("zero limit should fail validation");
 
     assert_internal_invalid_request(error, &["limit", "greater than 0"]);
 }
@@ -83,9 +83,6 @@ async fn assets_get_rejects_reserved_path_characters_before_transport() {
             .await
             .expect_err("reserved path characters should fail before transport");
 
-        assert_public_invalid_request(
-            error,
-            &["symbol_or_asset_id", "reserved path characters"],
-        );
+        assert_public_invalid_request(error, &["symbol_or_asset_id", "reserved path characters"]);
     }
 }
