@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.3 - 2026-04-06
+
+- Add metadata-backed read transport for `orders.list`, `orders.get`, and `orders.get_by_client_order_id`.
+- Validate `order_id` and alias `client_order_id` before send while keeping the shared authenticated `GET` retry path.
+- Expand local transport coverage across official path, query, auth, `429`, `5xx`, malformed JSON, and alias-endpoint behavior.
+
 ## 0.7.2 - 2026-04-06
 
 - Add the public `orders()` entrypoint together with the first typed orders requests, models, enums, and `NoContent` response marker.

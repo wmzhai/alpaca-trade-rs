@@ -51,6 +51,10 @@ impl Endpoint {
         )
     }
 
+    pub(crate) fn orders_list() -> Self {
+        Self::new("orders.list", Method::GET, "/v2/orders", true)
+    }
+
     #[allow(dead_code)]
     pub(crate) fn asset_get(symbol_or_asset_id: &str) -> Result<Self, Error> {
         let symbol_or_asset_id = required_path_segment("symbol_or_asset_id", symbol_or_asset_id)?;
@@ -72,6 +76,26 @@ impl Endpoint {
             format!("/v2/options/contracts/{symbol_or_id}"),
             true,
         ))
+    }
+
+    pub(crate) fn order_get(order_id: &str) -> Result<Self, Error> {
+        let order_id = required_path_segment("order_id", order_id)?;
+
+        Ok(Self::new(
+            "orders.get",
+            Method::GET,
+            format!("/v2/orders/{order_id}"),
+            true,
+        ))
+    }
+
+    pub(crate) fn order_get_by_client_order_id() -> Self {
+        Self::new(
+            "orders.get_by_client_order_id",
+            Method::GET,
+            "/v2/orders:by_client_order_id",
+            true,
+        )
     }
 
     pub(crate) fn name(&self) -> &'static str {
@@ -119,6 +143,16 @@ mod tests {
     }
 
     #[test]
+    fn orders_list_uses_metadata_backed_request_shape() {
+        let endpoint = Endpoint::orders_list();
+
+        assert_eq!(endpoint.name(), "orders.list");
+        assert_eq!(endpoint.method(), Method::GET);
+        assert_eq!(endpoint.path(), "/v2/orders");
+        assert!(endpoint.requires_auth());
+    }
+
+    #[test]
     fn asset_get_uses_metadata_backed_request_shape() {
         let endpoint = Endpoint::asset_get("AAPL").expect("asset endpoint should build");
 
@@ -136,6 +170,26 @@ mod tests {
         assert_eq!(endpoint.name(), "options_contracts.get");
         assert_eq!(endpoint.method(), Method::GET);
         assert_eq!(endpoint.path(), "/v2/options/contracts/AAPL250620C00100000");
+        assert!(endpoint.requires_auth());
+    }
+
+    #[test]
+    fn order_get_uses_metadata_backed_request_shape() {
+        let endpoint = Endpoint::order_get("order-id-123").expect("order endpoint should build");
+
+        assert_eq!(endpoint.name(), "orders.get");
+        assert_eq!(endpoint.method(), Method::GET);
+        assert_eq!(endpoint.path(), "/v2/orders/order-id-123");
+        assert!(endpoint.requires_auth());
+    }
+
+    #[test]
+    fn order_get_by_client_order_id_uses_alias_endpoint_shape() {
+        let endpoint = Endpoint::order_get_by_client_order_id();
+
+        assert_eq!(endpoint.name(), "orders.get_by_client_order_id");
+        assert_eq!(endpoint.method(), Method::GET);
+        assert_eq!(endpoint.path(), "/v2/orders:by_client_order_id");
         assert!(endpoint.requires_auth());
     }
 
@@ -164,6 +218,29 @@ mod tests {
                 Error::InvalidRequest(message) => {
                     assert!(message.contains("symbol_or_id"));
                     assert!(message.contains("reserved path characters"));
+                }
+                other => panic!("expected invalid request error, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn order_identifier_helpers_reject_reserved_chars_and_whitespace() {
+        for value in [
+            "/",
+            "%2F",
+            "order/id",
+            "order?id=1",
+            " order-id ",
+            " order-id",
+            "order-id ",
+        ] {
+            let error =
+                Endpoint::order_get(value).expect_err("invalid order identifiers should fail");
+
+            match error {
+                Error::InvalidRequest(message) => {
+                    assert!(message.contains("order_id"));
                 }
                 other => panic!("expected invalid request error, got {other:?}"),
             }
@@ -212,6 +289,7 @@ mod tests {
         let calendar = Endpoint::calendar_list();
         let assets = Endpoint::assets_list();
         let options_contracts = Endpoint::options_contracts_list();
+        let orders = Endpoint::orders_list();
 
         assert_eq!(account.name(), "account.get");
         assert_eq!(account.method(), Method::GET);
@@ -237,5 +315,10 @@ mod tests {
         assert_eq!(options_contracts.method(), Method::GET);
         assert_eq!(options_contracts.path(), "/v2/options/contracts");
         assert!(options_contracts.requires_auth());
+
+        assert_eq!(orders.name(), "orders.list");
+        assert_eq!(orders.method(), Method::GET);
+        assert_eq!(orders.path(), "/v2/orders");
+        assert!(orders.requires_auth());
     }
 }

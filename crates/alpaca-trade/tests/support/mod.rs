@@ -95,10 +95,12 @@ pub fn trade_credentials() -> Option<Credentials> {
     })
 }
 
+#[allow(dead_code)]
 pub(crate) fn trade_api_key_candidates() -> &'static [&'static str] {
     &API_KEY_CANDIDATES
 }
 
+#[allow(dead_code)]
 pub(crate) fn trade_secret_key_candidates() -> &'static [&'static str] {
     &SECRET_KEY_CANDIDATES
 }
