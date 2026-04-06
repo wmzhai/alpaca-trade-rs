@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1 - 2026-04-06
+
+- Add the Phase 7 orders test-support foundation, including shared `client_order_id` generation and real-vs-mock runtime gating.
+- Reuse the existing trade credential loading path for local `alpaca-data` market-data helpers.
+- Reserve real `cancel_all` validation for dedicated Paper test accounts only.
+
 ## 0.7.0 - 2026-04-06
 
 - Add the Phase 6 `options_contracts` resource family with typed mirror `list` and `get` support.

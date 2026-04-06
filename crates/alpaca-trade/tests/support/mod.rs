@@ -1,5 +1,7 @@
 #[allow(dead_code)]
 pub mod http_server;
+#[allow(dead_code)]
+pub mod orders;
 #[allow(unused_imports)]
 pub use http_server::TestServer;
 
@@ -8,6 +10,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
+#[allow(dead_code)]
 static DOTENV: OnceLock<HashMap<String, String>> = OnceLock::new();
 const API_KEY_CANDIDATES: [&str; 2] = ["ALPACA_TRADE_API_KEY", "APCA_API_KEY_ID"];
 const SECRET_KEY_CANDIDATES: [&str; 2] = ["ALPACA_TRADE_SECRET_KEY", "APCA_API_SECRET_KEY"];
@@ -40,6 +43,7 @@ fn read_dotenv_file(path: &Path) -> HashMap<String, String> {
         .collect()
 }
 
+#[allow(dead_code)]
 fn dotenv_values() -> &'static HashMap<String, String> {
     DOTENV.get_or_init(|| read_dotenv_file(&repo_root_dotenv_path()))
 }
@@ -68,6 +72,7 @@ fn select_credential_candidates(
         })
 }
 
+#[allow(dead_code)]
 pub fn trade_credentials() -> Option<Credentials> {
     let process_values = API_KEY_CANDIDATES
         .iter()
@@ -88,6 +93,14 @@ pub fn trade_credentials() -> Option<Credentials> {
         api_key,
         secret_key,
     })
+}
+
+pub(crate) fn trade_api_key_candidates() -> &'static [&'static str] {
+    &API_KEY_CANDIDATES
+}
+
+pub(crate) fn trade_secret_key_candidates() -> &'static [&'static str] {
+    &SECRET_KEY_CANDIDATES
 }
 
 #[cfg(test)]
