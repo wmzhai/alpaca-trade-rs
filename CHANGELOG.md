@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.9 - 2026-04-06
+
+- Expand the centralized request-validation regression suite to cover `options_contracts.list` and `options_contracts.get` fail-fast behavior before transport.
+- Add a credential-gated Alpaca Paper `options_contracts` smoke test that dynamically discovers an active contract before calling `get`.
+- Keep the live-first path stable without any hard-coded expiring options symbol.
+
 ## 0.6.8 - 2026-04-06
 
 - Add metadata-backed `options_contracts.list` and `options_contracts.get` transport wiring on the shared authenticated `GET` foundation.

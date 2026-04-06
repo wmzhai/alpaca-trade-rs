@@ -9,6 +9,7 @@ mod error {
 }
 
 use alpaca_trade::{Client, Error};
+use alpaca_trade::options_contracts::{ContractStatus, ListRequest};
 
 fn auth_client() -> Client {
     Client::builder()
@@ -109,5 +110,77 @@ async fn assets_get_rejects_reserved_path_characters_before_transport() {
             .expect_err("reserved path characters should fail before transport");
 
         assert_public_invalid_request(error, &["symbol_or_asset_id", "reserved path characters"]);
+    }
+}
+
+#[tokio::test]
+async fn options_contracts_get_rejects_blank_symbol_or_id_before_transport() {
+    let error = auth_client()
+        .options_contracts()
+        .get("   ")
+        .await
+        .expect_err("blank symbol_or_id should fail before transport");
+
+    assert_public_invalid_request(error, &["symbol_or_id", "must not be blank"]);
+}
+
+#[tokio::test]
+async fn options_contracts_get_rejects_whitespace_padded_symbol_or_id_before_transport() {
+    let error = auth_client()
+        .options_contracts()
+        .get(" AAPL250620C00100000 ")
+        .await
+        .expect_err("whitespace-padded symbol_or_id should fail before transport");
+
+    assert_public_invalid_request(
+        error,
+        &["symbol_or_id", "leading or trailing whitespace"],
+    );
+}
+
+#[tokio::test]
+async fn options_contracts_list_rejects_empty_underlying_symbols_before_transport() {
+    let error = auth_client()
+        .options_contracts()
+        .list(ListRequest {
+            underlying_symbols: Some(Vec::new()),
+            ..ListRequest::default()
+        })
+        .await
+        .expect_err("empty underlying_symbols should fail before transport");
+
+    assert_public_invalid_request(error, &["underlying_symbols", "at least one symbol"]);
+}
+
+#[tokio::test]
+async fn options_contracts_list_rejects_whitespace_padded_inputs_before_transport() {
+    let error = auth_client()
+        .options_contracts()
+        .list(ListRequest {
+            underlying_symbols: Some(vec![" AAPL ".into()]),
+            page_token: Some(" token ".into()),
+            ..ListRequest::default()
+        })
+        .await
+        .expect_err("whitespace-padded list inputs should fail before transport");
+
+    assert_public_invalid_request(error, &["leading or trailing whitespace"]);
+}
+
+#[tokio::test]
+async fn options_contracts_list_rejects_limit_out_of_range_before_transport() {
+    for limit in [0, 10_001] {
+        let error = auth_client()
+            .options_contracts()
+            .list(ListRequest {
+                underlying_symbols: Some(vec!["SPY".into()]),
+                status: Some(ContractStatus::Active),
+                limit: Some(limit),
+                ..ListRequest::default()
+            })
+            .await
+            .expect_err("out-of-range limit should fail before transport");
+
+        assert_public_invalid_request(error, &["limit"]);
     }
 }
