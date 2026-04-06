@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.4 - 2026-04-05
+
+- Document the crate-level examples entry point in both public READMEs.
+- Update the local upcoming-phase notes so Phase 6 may assume the pagination, validation, and examples baseline is already in place.
+- Finish the pre-Phase-6 track-laying round without changing API coverage scope or retry semantics.
+
 ## 0.6.3 - 2026-04-05
 
 - Add a crate-level examples baseline with `client_builder`, `account_get`, and `assets_list`.

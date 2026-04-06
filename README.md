@@ -33,6 +33,7 @@ use alpaca_trade::{Client, assets::ListRequest};
 let client = Client::builder()
     .api_key(std::env::var("APCA_API_KEY_ID").expect("APCA_API_KEY_ID is required"))
     .secret_key(std::env::var("APCA_API_SECRET_KEY").expect("APCA_API_SECRET_KEY is required"))
+    .paper()
     .build()?;
 
 let assets = client
@@ -47,6 +48,16 @@ let assets = client
 println!("{} {}", assets[0].symbol, assets[0].status);
 # Ok(())
 # }
+```
+
+## Examples
+
+Set `APCA_API_KEY_ID` and `APCA_API_SECRET_KEY`, then run one of:
+
+```sh
+cargo run -p alpaca-trade --example client_builder
+cargo run -p alpaca-trade --example account_get
+cargo run -p alpaca-trade --example assets_list
 ```
 
 ## Testing
