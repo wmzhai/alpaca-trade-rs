@@ -191,13 +191,13 @@ async fn options_contracts_list_rejects_limit_out_of_range_before_transport() {
         (10_001, "must be less than or equal to 10000"),
     ] {
         let error = auth_client()
-        .options_contracts()
-        .list(OptionsContractsListRequest {
-            underlying_symbols: Some(vec!["SPY".into()]),
-            status: Some(ContractStatus::Active),
-            limit: Some(limit),
-            ..OptionsContractsListRequest::default()
-        })
+            .options_contracts()
+            .list(OptionsContractsListRequest {
+                underlying_symbols: Some(vec!["SPY".into()]),
+                status: Some(ContractStatus::Active),
+                limit: Some(limit),
+                ..OptionsContractsListRequest::default()
+            })
             .await
             .expect_err("out-of-range limit should fail before transport");
 
@@ -246,7 +246,10 @@ async fn orders_get_by_client_order_id_rejects_whitespace_padded_identifier_befo
         .await
         .expect_err("whitespace-padded client_order_id should fail before transport");
 
-    assert_public_invalid_request(error, &["client_order_id", "leading or trailing whitespace"]);
+    assert_public_invalid_request(
+        error,
+        &["client_order_id", "leading or trailing whitespace"],
+    );
 }
 
 #[tokio::test]

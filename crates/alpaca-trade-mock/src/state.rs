@@ -60,7 +60,11 @@ impl Default for OrdersMarketSnapshot {
 }
 
 impl OrdersMarketSnapshot {
-    pub fn with_instrument(mut self, symbol: impl Into<String>, instrument: InstrumentSnapshot) -> Self {
+    pub fn with_instrument(
+        mut self,
+        symbol: impl Into<String>,
+        instrument: InstrumentSnapshot,
+    ) -> Self {
         self.instruments.insert(symbol.into(), instrument);
         self
     }
@@ -156,7 +160,9 @@ impl OrdersState {
     pub fn create_order(&self, input: CreateOrderInput) -> Result<Order, OrdersStateError> {
         let mut inner = self.inner.write();
 
-        let symbol = input.symbol.unwrap_or_else(|| DEFAULT_STOCK_SYMBOL.to_owned());
+        let symbol = input
+            .symbol
+            .unwrap_or_else(|| DEFAULT_STOCK_SYMBOL.to_owned());
         let client_order_id = input
             .client_order_id
             .unwrap_or_else(|| format!("mock-order-{}", Uuid::new_v4()));
@@ -196,7 +202,9 @@ impl OrdersState {
 
         let fill_instrument = inner.market_snapshot.instrument(&order.symbol);
         apply_fill_rules(&mut order, &fill_instrument);
-        inner.client_order_ids.insert(client_order_id, order_id.clone());
+        inner
+            .client_order_ids
+            .insert(client_order_id, order_id.clone());
         inner.orders.insert(order_id, order.clone());
 
         Ok(order)
@@ -220,10 +228,7 @@ impl OrdersState {
                     && symbol_filter
                         .as_ref()
                         .is_none_or(|symbols| symbols.contains(&order.symbol))
-                    && filter
-                        .side
-                        .as_ref()
-                        .is_none_or(|side| &order.side == side)
+                    && filter.side.as_ref().is_none_or(|side| &order.side == side)
                     && filter
                         .asset_class
                         .as_deref()
@@ -521,11 +526,7 @@ fn build_order(spec: NewOrderSpec) -> Order {
     .expect("mock order json should deserialize")
 }
 
-fn build_cancel_all_result(
-    id: String,
-    status: u16,
-    body: Option<Order>,
-) -> CancelAllOrderResult {
+fn build_cancel_all_result(id: String, status: u16, body: Option<Order>) -> CancelAllOrderResult {
     serde_json::from_value(serde_json::json!({
         "id": id,
         "status": status,

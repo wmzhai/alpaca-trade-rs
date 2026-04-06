@@ -12,8 +12,8 @@ use crate::calendar::CalendarClient;
 use crate::clock::ClockClient;
 use crate::error::Error;
 use crate::observer::{NoopObserver, Observer};
-use crate::orders::OrdersClient;
 use crate::options_contracts::OptionContractsClient;
+use crate::orders::OrdersClient;
 use crate::retry::RetryPolicy;
 use crate::transport::http::HttpClient;
 

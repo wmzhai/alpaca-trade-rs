@@ -147,10 +147,14 @@ fn order_deserializes_legs_take_profit_and_stop_loss_shapes() {
         "source": null
     });
 
-    let order: Order = serde_json::from_value(payload).expect("nested order payload should deserialize");
+    let order: Order =
+        serde_json::from_value(payload).expect("nested order payload should deserialize");
 
     assert_eq!(order.order_class, OrderClass::Bracket);
-    assert_eq!(order.take_profit.expect("take profit").limit_price, Decimal::new(51000, 2));
+    assert_eq!(
+        order.take_profit.expect("take profit").limit_price,
+        Decimal::new(51000, 2)
+    );
     let stop_loss = order.stop_loss.expect("stop loss");
     assert_eq!(stop_loss.stop_price, Decimal::new(49200, 2));
     assert_eq!(stop_loss.limit_price, Some(Decimal::new(49150, 2)));
@@ -211,7 +215,10 @@ fn cancel_all_result_deserializes_official_batch_shape() {
 
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].status, 200);
-    assert_eq!(results[0].body.as_ref().expect("body").status, OrderStatus::Canceled);
+    assert_eq!(
+        results[0].body.as_ref().expect("body").status,
+        OrderStatus::Canceled
+    );
 }
 
 #[test]

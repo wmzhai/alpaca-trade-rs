@@ -1,11 +1,13 @@
 use std::str::FromStr;
 
 use alpaca_trade::Decimal;
-use alpaca_trade::orders::{OrderClass, OrderSide, OrderType, PositionIntent, StopLoss, TakeProfit, TimeInForce};
+use alpaca_trade::orders::{
+    OrderClass, OrderSide, OrderType, PositionIntent, StopLoss, TakeProfit, TimeInForce,
+};
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -35,7 +37,6 @@ impl MockHttpError {
             message: message.into(),
         }
     }
-
 }
 
 impl IntoResponse for MockHttpError {

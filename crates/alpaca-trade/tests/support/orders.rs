@@ -10,7 +10,9 @@ use alpaca_trade::calendar::ListRequest as CalendarListRequest;
 use alpaca_trade::options_contracts::{ContractStatus, ListRequest as OptionsContractsListRequest};
 use alpaca_trade::orders::{Order, OrderStatus};
 use alpaca_trade::{Decimal, Error};
-use alpaca_trade_mock::{InstrumentSnapshot, OrdersMarketSnapshot, spawn_test_server_with_market_snapshot};
+use alpaca_trade_mock::{
+    InstrumentSnapshot, OrdersMarketSnapshot, spawn_test_server_with_market_snapshot,
+};
 use tokio::time::sleep;
 
 use super::Credentials;
@@ -124,7 +126,9 @@ pub(crate) fn should_run_real_cancel_all(
 
 pub(crate) fn is_dedicated_orders_test_account_marker_set() -> bool {
     matches!(
-        std::env::var(DEDICATED_ORDERS_TEST_ACCOUNT_ENV).ok().as_deref(),
+        std::env::var(DEDICATED_ORDERS_TEST_ACCOUNT_ENV)
+            .ok()
+            .as_deref(),
         Some("1" | "true" | "TRUE" | "yes" | "YES")
     )
 }
@@ -206,7 +210,12 @@ pub(crate) async fn detect_orders_runtime_mode(client: &Client) -> OrdersRuntime
         Err(_) => false,
     };
 
-    select_runtime_mode(true, clock.is_open, has_calendar_session, dedicated_account_marker)
+    select_runtime_mode(
+        true,
+        clock.is_open,
+        has_calendar_session,
+        dedicated_account_marker,
+    )
 }
 
 pub(crate) async fn stock_price_context(
@@ -296,8 +305,9 @@ async fn discover_live_option_contract(
         .await
         .map_err(|error| format!("options snapshots request failed: {error}"))?;
 
-    best_option_candidate(tradable_contracts, snapshots.snapshots)
-        .ok_or_else(|| format!("no quoted option contract snapshot was available for {underlying_symbol}"))
+    best_option_candidate(tradable_contracts, snapshots.snapshots).ok_or_else(|| {
+        format!("no quoted option contract snapshot was available for {underlying_symbol}")
+    })
 }
 
 pub(crate) async fn wait_for_order_terminal_state(
@@ -374,13 +384,17 @@ async fn latest_stock_quote(
         .ap
         .or(quote.quote.bp)
         .and_then(|value| Decimal::from_str(&value.to_string()).ok())
-        .ok_or_else(|| format!("latest stock quote for {symbol} is missing both ask and bid prices"))?;
+        .ok_or_else(|| {
+            format!("latest stock quote for {symbol} is missing both ask and bid prices")
+        })?;
 
     Ok((bid, ask))
 }
 
 async fn latest_stock_ask(data_client: &DataClient, symbol: &str) -> Result<Decimal, String> {
-    latest_stock_quote(data_client, symbol).await.map(|(_, ask)| ask)
+    latest_stock_quote(data_client, symbol)
+        .await
+        .map(|(_, ask)| ask)
 }
 
 async fn build_mock_test_context(
@@ -413,10 +427,8 @@ async fn build_mock_market_snapshot(
 
     if let Some(data_client) = data_client {
         if let Ok((bid, ask)) = latest_stock_quote(data_client, stock_test_symbol()).await {
-            snapshot = snapshot.with_instrument(
-                stock_test_symbol(),
-                InstrumentSnapshot::equity(bid, ask),
-            );
+            snapshot =
+                snapshot.with_instrument(stock_test_symbol(), InstrumentSnapshot::equity(bid, ask));
         }
     }
 

@@ -4,15 +4,16 @@ use alpaca_trade::{
     assets::{Asset, ListRequest as AssetsListRequest},
     calendar::{Calendar, ListRequest as CalendarListRequest},
     clock::Clock,
-    orders::{
-        CancelAllOrderResult, CreateRequest as OrdersCreateRequest, ListRequest as OrdersListRequest,
-        OptionLegRequest, Order, OrderClass, OrderSide, OrderStatus, OrderType, OrdersClient,
-        PositionIntent, QueryOrderStatus, ReplaceRequest as OrdersReplaceRequest, TimeInForce,
-    },
     options_contracts::{
         ContractStatus, ContractStyle, ContractType, DeliverableSettlementMethod,
         DeliverableSettlementType, DeliverableType, ListRequest as OptionsContractsListRequest,
         ListResponse, OptionContract, OptionDeliverable,
+    },
+    orders::{
+        CancelAllOrderResult, CreateRequest as OrdersCreateRequest,
+        ListRequest as OrdersListRequest, OptionLegRequest, Order, OrderClass, OrderSide,
+        OrderStatus, OrderType, OrdersClient, PositionIntent, QueryOrderStatus,
+        ReplaceRequest as OrdersReplaceRequest, TimeInForce,
     },
 };
 use std::fs;
@@ -37,7 +38,8 @@ fn assert_debug_redacts(debug: &str) {
 }
 
 #[test]
-fn public_api_exposes_account_assets_calendar_clock_options_contracts_and_orders_types_and_accessors() {
+fn public_api_exposes_account_assets_calendar_clock_options_contracts_and_orders_types_and_accessors()
+ {
     let client = Client::builder()
         .api_key(API_KEY_SENTINEL)
         .secret_key(SECRET_KEY_SENTINEL)

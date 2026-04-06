@@ -25,7 +25,9 @@ async fn orders_mutating_stock_limit_create_get_replace_cancel_and_lookup_by_cli
                 r#type: Some(OrderType::Limit),
                 time_in_force: Some(TimeInForce::Day),
                 limit_price: Some(quote.non_marketable_buy_limit_price),
-                client_order_id: Some(context.next_client_order_id("stock-limit", "lookup-by-client-order-id")),
+                client_order_id: Some(
+                    context.next_client_order_id("stock-limit", "lookup-by-client-order-id"),
+                ),
                 ..CreateRequest::default()
             })
             .await?;
@@ -134,7 +136,9 @@ async fn orders_mutating_option_limit_create_get_cancel_and_lookup_by_client_ord
                 r#type: Some(OrderType::Limit),
                 time_in_force: Some(TimeInForce::Day),
                 limit_price: Some(contract.non_marketable_buy_limit_price),
-                client_order_id: Some(context.next_client_order_id("option-limit", "lookup-by-client-order-id")),
+                client_order_id: Some(
+                    context.next_client_order_id("option-limit", "lookup-by-client-order-id"),
+                ),
                 position_intent: Some(PositionIntent::BuyToOpen),
                 ..CreateRequest::default()
             })
@@ -238,7 +242,9 @@ async fn orders_mutating_cancel_all_clears_test_orders_in_active_runtime() {
                     r#type: Some(OrderType::Limit),
                     time_in_force: Some(TimeInForce::Day),
                     limit_price: Some(quote.non_marketable_buy_limit_price),
-                    client_order_id: Some(context.next_client_order_id("cancel-all", &format!("order-{index}"))),
+                    client_order_id: Some(
+                        context.next_client_order_id("cancel-all", &format!("order-{index}")),
+                    ),
                     ..CreateRequest::default()
                 })
                 .await?;

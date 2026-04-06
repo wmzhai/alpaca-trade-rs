@@ -1,6 +1,6 @@
 use alpaca_trade::orders::{
-    CreateRequest, ListRequest, OrderClass, OrderSide, OrderType, PositionIntent,
-    QueryOrderStatus, ReplaceRequest, SortDirection, StopLoss, TakeProfit, TimeInForce,
+    CreateRequest, ListRequest, OrderClass, OrderSide, OrderType, PositionIntent, QueryOrderStatus,
+    ReplaceRequest, SortDirection, StopLoss, TakeProfit, TimeInForce,
 };
 use alpaca_trade::{Client, Error};
 use serde_json::json;
@@ -109,8 +109,14 @@ async fn orders_list_hits_official_path_query_and_sends_auth_headers() {
     let request = server.into_single_request();
     assert_eq!(request.request_line, ORDERS_LIST_REQUEST_LINE);
     assert!(request.body.is_empty());
-    assert_eq!(request.headers.get("apca-api-key-id"), Some(&"key".to_owned()));
-    assert_eq!(request.headers.get("apca-api-secret-key"), Some(&"secret".to_owned()));
+    assert_eq!(
+        request.headers.get("apca-api-key-id"),
+        Some(&"key".to_owned())
+    );
+    assert_eq!(
+        request.headers.get("apca-api-secret-key"),
+        Some(&"secret".to_owned())
+    );
 }
 
 #[tokio::test]
@@ -310,7 +316,10 @@ async fn orders_identifiers_fail_before_transport() {
     }
 
     let requests = server.into_requests();
-    assert!(requests.is_empty(), "invalid identifiers should not send any request");
+    assert!(
+        requests.is_empty(),
+        "invalid identifiers should not send any request"
+    );
 }
 
 #[tokio::test]
@@ -338,7 +347,8 @@ async fn orders_create_posts_official_body_shape_once() {
     let request = server.into_single_request();
     assert_eq!(request.request_line, "POST /v2/orders HTTP/1.1");
     assert_eq!(
-        serde_json::from_str::<serde_json::Value>(&request.body).expect("request body must be json"),
+        serde_json::from_str::<serde_json::Value>(&request.body)
+            .expect("request body must be json"),
         json!({
             "symbol": "SPY",
             "qty": "1",
@@ -379,9 +389,13 @@ async fn orders_replace_patches_official_body_shape_once() {
     assert_eq!(order.symbol, "SPY");
 
     let request = server.into_single_request();
-    assert_eq!(request.request_line, "PATCH /v2/orders/order-id-123 HTTP/1.1");
     assert_eq!(
-        serde_json::from_str::<serde_json::Value>(&request.body).expect("request body must be json"),
+        request.request_line,
+        "PATCH /v2/orders/order-id-123 HTTP/1.1"
+    );
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&request.body)
+            .expect("request body must be json"),
         json!({
             "qty": "2",
             "time_in_force": "day",
@@ -410,7 +424,10 @@ async fn orders_cancel_accepts_204_and_sends_no_body() {
         .expect("orders cancel request should succeed");
 
     let request = server.into_single_request();
-    assert_eq!(request.request_line, "DELETE /v2/orders/order-id-123 HTTP/1.1");
+    assert_eq!(
+        request.request_line,
+        "DELETE /v2/orders/order-id-123 HTTP/1.1"
+    );
     assert!(request.body.is_empty());
 }
 

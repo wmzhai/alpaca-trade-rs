@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0 - 2026-04-06
+
+- Add the full Phase 7 `orders` family on the shared Trading transport, including list, create, get, replace, cancel, `cancel_all`, and `get_by_client_order_id`.
+- Cover orders with local request/model/transport/public-API validation, dedicated-Paper mutating support, and automatic `alpaca-trade-mock` fallback when the guarded Paper path is unavailable.
+- Sync the workspace READMEs and Trading API coverage manifest to mark `orders` implemented and move the next planned resource family to `positions`.
+- Normalize the touched Rust sources with `cargo fmt` and finish the Phase 7 workspace verification pass across formatting, build, examples, and tests.
+
 ## 0.7.7 - 2026-04-06
 
 - Promote `orders` to the Phase 7 workspace milestone in the public READMEs and move the next planned resource family to `positions`.
