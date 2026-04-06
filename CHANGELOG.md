@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.8 - 2026-04-06
+
+- Add metadata-backed `options_contracts.list` and `options_contracts.get` transport wiring on the shared authenticated `GET` foundation.
+- Fail fast on invalid `symbol_or_id` path segments before sending requests, including reserved path characters and whitespace-padded identifiers.
+- Expand local `options_contracts` transport coverage across official query serialization, auth headers, `429`, `5xx`, malformed JSON, invalid path segments, and symbol-vs-UUID path usage.
+
 ## 0.6.7 - 2026-04-06
 
 - Add the typed mirror response models for `options_contracts`, including pagination, deliverables, enums, and Decimal-backed contract fields.

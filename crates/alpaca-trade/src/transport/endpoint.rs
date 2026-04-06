@@ -42,6 +42,15 @@ impl Endpoint {
         Self::new("assets.list", Method::GET, "/v2/assets", true)
     }
 
+    pub(crate) fn options_contracts_list() -> Self {
+        Self::new(
+            "options_contracts.list",
+            Method::GET,
+            "/v2/options/contracts",
+            true,
+        )
+    }
+
     #[allow(dead_code)]
     pub(crate) fn asset_get(symbol_or_asset_id: &str) -> Result<Self, Error> {
         let symbol_or_asset_id = required_path_segment("symbol_or_asset_id", symbol_or_asset_id)?;
@@ -50,6 +59,17 @@ impl Endpoint {
             "assets.get",
             Method::GET,
             format!("/v2/assets/{symbol_or_asset_id}"),
+            true,
+        ))
+    }
+
+    pub(crate) fn option_contract_get(symbol_or_id: &str) -> Result<Self, Error> {
+        let symbol_or_id = required_path_segment("symbol_or_id", symbol_or_id)?;
+
+        Ok(Self::new(
+            "options_contracts.get",
+            Method::GET,
+            format!("/v2/options/contracts/{symbol_or_id}"),
             true,
         ))
     }
@@ -89,12 +109,33 @@ mod tests {
     }
 
     #[test]
+    fn options_contracts_list_uses_metadata_backed_request_shape() {
+        let endpoint = Endpoint::options_contracts_list();
+
+        assert_eq!(endpoint.name(), "options_contracts.list");
+        assert_eq!(endpoint.method(), Method::GET);
+        assert_eq!(endpoint.path(), "/v2/options/contracts");
+        assert!(endpoint.requires_auth());
+    }
+
+    #[test]
     fn asset_get_uses_metadata_backed_request_shape() {
         let endpoint = Endpoint::asset_get("AAPL").expect("asset endpoint should build");
 
         assert_eq!(endpoint.name(), "assets.get");
         assert_eq!(endpoint.method(), Method::GET);
         assert_eq!(endpoint.path(), "/v2/assets/AAPL");
+        assert!(endpoint.requires_auth());
+    }
+
+    #[test]
+    fn option_contract_get_uses_metadata_backed_request_shape() {
+        let endpoint = Endpoint::option_contract_get("AAPL250620C00100000")
+            .expect("options contract endpoint should build");
+
+        assert_eq!(endpoint.name(), "options_contracts.get");
+        assert_eq!(endpoint.method(), Method::GET);
+        assert_eq!(endpoint.path(), "/v2/options/contracts/AAPL250620C00100000");
         assert!(endpoint.requires_auth());
     }
 
@@ -107,6 +148,21 @@ mod tests {
             match error {
                 Error::InvalidRequest(message) => {
                     assert!(message.contains("symbol_or_asset_id"));
+                }
+                other => panic!("expected invalid request error, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn option_contract_get_rejects_reserved_url_characters_in_path_segments() {
+        for value in ["/", "%2F", "AAPL/US", "AAPL?draft=true", "AAPL#fragment"] {
+            let error = Endpoint::option_contract_get(value)
+                .expect_err("reserved URL characters should fail");
+
+            match error {
+                Error::InvalidRequest(message) => {
+                    assert!(message.contains("symbol_or_id"));
                 }
                 other => panic!("expected invalid request error, got {other:?}"),
             }
@@ -129,11 +185,32 @@ mod tests {
     }
 
     #[test]
+    fn option_contract_get_rejects_leading_or_trailing_whitespace_in_path_segments() {
+        for value in [
+            " AAPL250620C00100000",
+            "AAPL250620C00100000 ",
+            " AAPL250620C00100000 ",
+        ] {
+            let error = Endpoint::option_contract_get(value)
+                .expect_err("surrounding whitespace should fail");
+
+            match error {
+                Error::InvalidRequest(message) => {
+                    assert!(message.contains("symbol_or_id"));
+                    assert!(message.contains("leading or trailing whitespace"));
+                }
+                other => panic!("expected invalid request error, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
     fn static_endpoint_helpers_preserve_metadata() {
         let account = Endpoint::account_get();
         let clock = Endpoint::clock_get();
         let calendar = Endpoint::calendar_list();
         let assets = Endpoint::assets_list();
+        let options_contracts = Endpoint::options_contracts_list();
 
         assert_eq!(account.name(), "account.get");
         assert_eq!(account.method(), Method::GET);
@@ -154,5 +231,10 @@ mod tests {
         assert_eq!(assets.method(), Method::GET);
         assert_eq!(assets.path(), "/v2/assets");
         assert!(assets.requires_auth());
+
+        assert_eq!(options_contracts.name(), "options_contracts.list");
+        assert_eq!(options_contracts.method(), Method::GET);
+        assert_eq!(options_contracts.path(), "/v2/options/contracts");
+        assert!(options_contracts.requires_auth());
     }
 }
