@@ -1,4 +1,5 @@
-use alpaca_trade::assets::Asset;
+use alpaca_trade::{Decimal, assets::Asset};
+use std::str::FromStr;
 
 #[test]
 fn asset_model_deserializes_official_list_shape() {
@@ -39,9 +40,18 @@ fn asset_model_deserializes_official_list_shape() {
     assert!(assets[0].easy_to_borrow);
     assert!(assets[0].fractionable);
     assert_eq!(assets[0].cusip.as_deref(), Some("037833100"));
-    assert_eq!(assets[0].maintenance_margin_requirement, Some(30.0));
-    assert_eq!(assets[0].margin_requirement_long.as_deref(), Some("30"));
-    assert_eq!(assets[0].margin_requirement_short.as_deref(), Some("100"));
+    assert_eq!(
+        assets[0].maintenance_margin_requirement,
+        Some(Decimal::from_str("30.0").expect("decimal should parse"))
+    );
+    assert_eq!(
+        assets[0].margin_requirement_long,
+        Some(Decimal::from_str("30").expect("decimal should parse"))
+    );
+    assert_eq!(
+        assets[0].margin_requirement_short,
+        Some(Decimal::from_str("100").expect("decimal should parse"))
+    );
     let expected_attributes = vec!["fractional_eh_enabled".to_owned(), "has_options".to_owned()];
     assert_eq!(
         assets[0].attributes.as_ref().map(Vec::as_slice),

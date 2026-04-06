@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.3 - 2026-04-05
+
+- Replace the implemented assets financial fields with Decimal in the public Rust model.
+- Parse official asset numeric strings and JSON numbers through the shared Decimal helpers.
+- Extend asset model and transport coverage so the Decimal migration is exercised on real response bodies.
+
 ## 0.5.2 - 2026-04-05
 
 - Migrate implemented account financial fields from numeric strings to Decimal in the public Rust model.
