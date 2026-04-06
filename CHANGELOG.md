@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.7 - 2026-04-06
+
+- Add the typed mirror response models for `options_contracts`, including pagination, deliverables, enums, and Decimal-backed contract fields.
+- Preserve the official `type`, `style`, `status`, and deliverable settlement words while tightening them into Rust enums.
+- Keep the Phase 6 list response compatible with the shared token-aware pagination contract without exposing `list_all()` yet.
+
 ## 0.6.6 - 2026-04-06
 
 - Add the public `options_contracts()` entrypoint and the first typed mirror request skeleton.

@@ -53,6 +53,10 @@ fn public_api_exposes_account_assets_calendar_clock_and_options_contracts_types_
     let _: Option<ListResponse> = None;
     let _: Option<OptionContract> = None;
     let _: Option<OptionDeliverable> = None;
+    let _: fn(ListResponse) -> Option<String> = |response| response.next_page_token;
+    let _: fn(OptionContract) -> Decimal = |contract| contract.strike_price;
+    let _: fn(OptionContract) -> Option<Vec<OptionDeliverable>> = |contract| contract.deliverables;
+    let _: fn(OptionDeliverable) -> DeliverableType = |deliverable| deliverable.r#type;
     let _ = AssetsListRequest::default();
     let _ = Calendar::default();
     let _ = CalendarListRequest::default();
