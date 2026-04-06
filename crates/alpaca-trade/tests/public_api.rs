@@ -10,6 +10,7 @@ use alpaca_trade::{
         ListResponse, OptionContract, OptionDeliverable,
     },
 };
+use std::fs;
 
 const API_KEY_SENTINEL: &str = "api-key-sentinel-7f4d0c1a";
 const SECRET_KEY_SENTINEL: &str = "secret-key-sentinel-9b82e6f3";
@@ -191,4 +192,28 @@ fn assets_client_debug_does_not_expose_credentials() {
     let debug = format!("{:?}", client.assets());
 
     assert_debug_redacts(&debug);
+}
+
+#[test]
+fn options_contracts_wire_enums_are_non_exhaustive() {
+    let model = fs::read_to_string(format!(
+        "{}/src/options_contracts/model.rs",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("options_contracts model source should be readable");
+
+    for enum_name in [
+        "ContractStatus",
+        "ContractType",
+        "ContractStyle",
+        "DeliverableType",
+        "DeliverableSettlementType",
+        "DeliverableSettlementMethod",
+    ] {
+        let marker = format!("#[non_exhaustive]\npub enum {enum_name}");
+        assert!(
+            model.contains(&marker),
+            "{enum_name} should remain non_exhaustive"
+        );
+    }
 }

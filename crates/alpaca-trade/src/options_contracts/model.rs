@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum ContractStatus {
     Active,
     Inactive,
@@ -17,6 +18,7 @@ pub enum ContractStatus {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum ContractType {
     Call,
     Put,
@@ -24,6 +26,7 @@ pub enum ContractType {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum ContractStyle {
     American,
     European,
@@ -31,12 +34,14 @@ pub enum ContractStyle {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum DeliverableType {
     Cash,
     Equity,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum DeliverableSettlementType {
     #[serde(rename = "T+0")]
     TPlus0,
@@ -53,6 +58,7 @@ pub enum DeliverableSettlementType {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum DeliverableSettlementMethod {
     #[serde(rename = "BTOB")]
     Btob,
