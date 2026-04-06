@@ -284,12 +284,14 @@ async fn options_contracts_get_rejects_invalid_path_segment_before_send() {
         "HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}".to_owned(),
     ]);
 
-    for value in [
-        "/",
-        "%2F",
-        " AAPL250620C00100000 ",
-        " AAPL250620C00100000",
-        "AAPL250620C00100000 ",
+    for (value, reason) in [
+        ("", "must not be blank"),
+        ("   ", "must not be blank"),
+        ("/", "reserved path characters"),
+        ("%2F", "reserved path characters"),
+        (" AAPL250620C00100000 ", "leading or trailing whitespace"),
+        (" AAPL250620C00100000", "leading or trailing whitespace"),
+        ("AAPL250620C00100000 ", "leading or trailing whitespace"),
     ] {
         let error = Client::builder()
             .api_key("key")
@@ -305,6 +307,7 @@ async fn options_contracts_get_rejects_invalid_path_segment_before_send() {
         match error {
             Error::InvalidRequest(message) => {
                 assert!(message.contains("symbol_or_id"));
+                assert!(message.contains(reason));
             }
             other => panic!("expected invalid request error, got {other:?}"),
         }

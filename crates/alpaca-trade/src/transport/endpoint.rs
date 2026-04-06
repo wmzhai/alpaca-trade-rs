@@ -163,6 +163,7 @@ mod tests {
             match error {
                 Error::InvalidRequest(message) => {
                     assert!(message.contains("symbol_or_id"));
+                    assert!(message.contains("reserved path characters"));
                 }
                 other => panic!("expected invalid request error, got {other:?}"),
             }
