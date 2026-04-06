@@ -13,6 +13,7 @@ use alpaca_trade::{Decimal, Error};
 use alpaca_trade_mock::{
     InstrumentSnapshot, OrdersMarketSnapshot, spawn_test_server_with_market_snapshot,
 };
+use tokio::sync::{Mutex, MutexGuard};
 use tokio::time::sleep;
 
 use super::Credentials;
@@ -20,6 +21,7 @@ use super::Credentials;
 const DEDICATED_ORDERS_TEST_ACCOUNT_ENV: &str = "ALPACA_TRADE_ORDERS_TEST_ACCOUNT";
 const MIN_PRICE: Decimal = Decimal::ZERO;
 static CLIENT_ORDER_COUNTER: AtomicU64 = AtomicU64::new(1);
+static ORDERS_MUTATING_TEST_MUTEX: Mutex<()> = Mutex::const_new(());
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OrdersRuntimeMode {
@@ -102,6 +104,10 @@ pub(crate) fn next_client_order_id(suite: &str, test_name: &str) -> String {
         sanitize_client_order_component(suite),
         sanitize_client_order_component(test_name),
     )
+}
+
+pub(crate) async fn orders_test_lock() -> MutexGuard<'static, ()> {
+    ORDERS_MUTATING_TEST_MUTEX.lock().await
 }
 
 pub(crate) fn select_runtime_mode(
@@ -327,6 +333,35 @@ pub(crate) async fn wait_for_order_terminal_state(
 
     Err(Error::InvalidConfiguration(format!(
         "timed out waiting for order {order_id} to reach terminal state; last status: {:?}",
+        last_order.map(|order| order.status),
+    )))
+}
+
+pub(crate) async fn wait_for_order_statuses(
+    client: &Client,
+    order_id: &str,
+    expected_statuses: &[OrderStatus],
+) -> Result<Order, Error> {
+    let mut last_order = None;
+
+    for _ in 0..30 {
+        let order = client.orders().get(order_id).await?;
+        if expected_statuses.contains(&order.status) {
+            return Ok(order);
+        }
+        if is_terminal_status(order.status.clone()) {
+            return Err(Error::InvalidConfiguration(format!(
+                "order {order_id} reached unexpected terminal status {:?} before expected statuses {:?}",
+                order.status, expected_statuses,
+            )));
+        }
+        last_order = Some(order);
+        sleep(Duration::from_secs(1)).await;
+    }
+
+    Err(Error::InvalidConfiguration(format!(
+        "timed out waiting for order {order_id} to reach expected statuses {:?}; last status: {:?}",
+        expected_statuses,
         last_order.map(|order| order.status),
     )))
 }

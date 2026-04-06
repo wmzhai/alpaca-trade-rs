@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.1 - 2026-04-06
+
+- Stabilize live Paper `orders_mutating` coverage by serializing the mutating tests on the shared dedicated account.
+- Align the live replace-path assertions with Alpaca Paper behavior where `replace` may return a new replacement order while the original order transitions to `replaced`.
+- Extend the live Paper orders flows so both stock and option limit paths exercise `list`, `get`, `get_by_client_order_id`, `replace`, and `cancel` before cleanup.
+
 ## 0.8.0 - 2026-04-06
 
 - Add the full Phase 7 `orders` family on the shared Trading transport, including list, create, get, replace, cancel, `cancel_all`, and `get_by_client_order_id`.

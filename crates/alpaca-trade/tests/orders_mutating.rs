@@ -1,13 +1,18 @@
 mod support;
 
-use alpaca_trade::orders::{CreateRequest, OrderStatus, OrderType, PositionIntent, TimeInForce};
+use alpaca_trade::orders::{
+    CreateRequest, ListRequest, OrderStatus, OrderType, PositionIntent, QueryOrderStatus,
+    TimeInForce,
+};
 use support::orders::{
     CleanupTracker, cleanup_open_orders, discover_option_contract, orders_test_context,
-    stock_price_context, wait_for_order_terminal_state,
+    orders_test_lock,
+    stock_price_context, wait_for_order_statuses, wait_for_order_terminal_state,
 };
 
 #[tokio::test]
 async fn orders_mutating_stock_limit_create_get_replace_cancel_and_lookup_by_client_order_id() {
+    let _guard = orders_test_lock().await;
     let context = orders_test_context().await;
 
     let mut cleanup = CleanupTracker::new(false);
@@ -37,6 +42,18 @@ async fn orders_mutating_stock_limit_create_get_replace_cancel_and_lookup_by_cli
         let fetched = context.trade_client.orders().get(&order.id).await?;
         assert_eq!(fetched.id, order.id);
 
+        let listed = context
+            .trade_client
+            .orders()
+            .list(ListRequest {
+                status: Some(QueryOrderStatus::Open),
+                limit: Some(50),
+                symbols: Some(vec!["SPY".to_owned()]),
+                ..ListRequest::default()
+            })
+            .await?;
+        assert!(listed.iter().any(|listed_order| listed_order.id == order.id));
+
         let fetched_by_client_order_id = context
             .trade_client
             .orders()
@@ -44,21 +61,35 @@ async fn orders_mutating_stock_limit_create_get_replace_cancel_and_lookup_by_cli
             .await?;
         assert_eq!(fetched_by_client_order_id.id, order.id);
 
+        let replaceable = wait_for_order_statuses(
+            &context.trade_client,
+            &order.id,
+            &[OrderStatus::New, OrderStatus::Accepted],
+        )
+        .await?;
+
         let replaced = context
             .trade_client
             .orders()
             .replace(
-                &order.id,
+                &replaceable.id,
                 alpaca_trade::orders::ReplaceRequest {
                     limit_price: Some(quote.more_conservative_buy_limit_price),
                     ..alpaca_trade::orders::ReplaceRequest::default()
                 },
             )
             .await?;
-        assert_eq!(replaced.id, order.id);
+        let active_order_id = if replaced.id == order.id {
+            order.id.clone()
+        } else {
+            assert_eq!(replaced.replaces.as_deref(), Some(order.id.as_str()));
+            cleanup.record_order_id(replaced.id.clone());
+            replaced.id.clone()
+        };
 
-        context.trade_client.orders().cancel(&order.id).await?;
-        let canceled = wait_for_order_terminal_state(&context.trade_client, &order.id).await?;
+        context.trade_client.orders().cancel(&active_order_id).await?;
+        let canceled =
+            wait_for_order_terminal_state(&context.trade_client, &active_order_id).await?;
         assert_eq!(canceled.status, OrderStatus::Canceled);
         Ok(())
     }
@@ -70,6 +101,7 @@ async fn orders_mutating_stock_limit_create_get_replace_cancel_and_lookup_by_cli
 
 #[tokio::test]
 async fn orders_mutating_stock_market_order_reaches_terminal_state() {
+    let _guard = orders_test_lock().await;
     let context = orders_test_context().await;
 
     let mut cleanup = CleanupTracker::new(false);
@@ -118,7 +150,8 @@ async fn orders_mutating_stock_market_order_reaches_terminal_state() {
 }
 
 #[tokio::test]
-async fn orders_mutating_option_limit_create_get_cancel_and_lookup_by_client_order_id() {
+async fn orders_mutating_option_limit_create_get_replace_cancel_and_lookup_by_client_order_id() {
+    let _guard = orders_test_lock().await;
     let context = orders_test_context().await;
 
     let mut cleanup = CleanupTracker::new(false);
@@ -149,6 +182,18 @@ async fn orders_mutating_option_limit_create_get_cancel_and_lookup_by_client_ord
         let fetched = context.trade_client.orders().get(&order.id).await?;
         assert_eq!(fetched.id, order.id);
 
+        let listed = context
+            .trade_client
+            .orders()
+            .list(ListRequest {
+                status: Some(QueryOrderStatus::Open),
+                limit: Some(50),
+                symbols: Some(vec![contract.symbol.clone()]),
+                ..ListRequest::default()
+            })
+            .await?;
+        assert!(listed.iter().any(|listed_order| listed_order.id == order.id));
+
         let fetched_by_client_order_id = context
             .trade_client
             .orders()
@@ -156,8 +201,39 @@ async fn orders_mutating_option_limit_create_get_cancel_and_lookup_by_client_ord
             .await?;
         assert_eq!(fetched_by_client_order_id.id, order.id);
 
-        context.trade_client.orders().cancel(&order.id).await?;
-        let canceled = wait_for_order_terminal_state(&context.trade_client, &order.id).await?;
+        let replaceable = wait_for_order_statuses(
+            &context.trade_client,
+            &order.id,
+            &[OrderStatus::New, OrderStatus::Accepted],
+        )
+        .await?;
+        let replacement_limit_price =
+            (contract.non_marketable_buy_limit_price / alpaca_trade::Decimal::new(2, 0))
+                .round_dp(2)
+                .max(alpaca_trade::Decimal::new(1, 2));
+
+        let replaced = context
+            .trade_client
+            .orders()
+            .replace(
+                &replaceable.id,
+                alpaca_trade::orders::ReplaceRequest {
+                    limit_price: Some(replacement_limit_price),
+                    ..alpaca_trade::orders::ReplaceRequest::default()
+                },
+            )
+            .await?;
+        let active_order_id = if replaced.id == order.id {
+            order.id.clone()
+        } else {
+            assert_eq!(replaced.replaces.as_deref(), Some(order.id.as_str()));
+            cleanup.record_order_id(replaced.id.clone());
+            replaced.id.clone()
+        };
+
+        context.trade_client.orders().cancel(&active_order_id).await?;
+        let canceled =
+            wait_for_order_terminal_state(&context.trade_client, &active_order_id).await?;
         assert_eq!(canceled.status, OrderStatus::Canceled);
         Ok(())
     }
@@ -169,6 +245,7 @@ async fn orders_mutating_option_limit_create_get_cancel_and_lookup_by_client_ord
 
 #[tokio::test]
 async fn orders_mutating_option_market_order_reaches_terminal_state() {
+    let _guard = orders_test_lock().await;
     let context = orders_test_context().await;
 
     let mut cleanup = CleanupTracker::new(false);
@@ -223,6 +300,7 @@ async fn orders_mutating_option_market_order_reaches_terminal_state() {
 
 #[tokio::test]
 async fn orders_mutating_cancel_all_clears_test_orders_in_active_runtime() {
+    let _guard = orders_test_lock().await;
     let context = orders_test_context().await;
 
     let mut cleanup = CleanupTracker::new(true);
