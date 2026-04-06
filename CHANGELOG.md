@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.2 - 2026-04-05
+
+- Add `tests/request_validation.rs` as the centralized fail-fast regression entry point for request-shaping guardrails.
+- Factor blank-string validation into a shared helper so future `symbol` / `underlying_symbol` requests reuse one error wording path.
+- Cover the current public `assets.get` path guardrail without exposing new internal validation APIs.
+
 ## 0.6.1 - 2026-04-05
 
 - Refactor the shared pagination helper from an item accumulator into a token-aware request/response contract.

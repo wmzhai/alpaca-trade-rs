@@ -1,22 +1,29 @@
 use crate::error::Error;
 
 #[allow(dead_code)]
-pub(crate) fn required_path_segment(name: &'static str, value: &str) -> Result<String, Error> {
+pub(crate) fn required_text(name: &'static str, value: &str) -> Result<String, Error> {
     let trimmed = value.trim();
 
     if trimmed.is_empty() {
         return Err(Error::InvalidRequest(format!("{name} must not be blank")));
     }
 
+    Ok(trimmed.to_owned())
+}
+
+#[allow(dead_code)]
+pub(crate) fn required_path_segment(name: &'static str, value: &str) -> Result<String, Error> {
+    let trimmed = required_text(name, value)?;
+
     if trimmed.chars().any(|ch| matches!(ch, '/' | '?' | '#'))
-        || contains_encoded_reserved_path_characters(trimmed)
+        || contains_encoded_reserved_path_characters(&trimmed)
     {
         return Err(Error::InvalidRequest(format!(
             "{name} must not contain reserved path characters"
         )));
     }
 
-    Ok(trimmed.to_owned())
+    Ok(trimmed)
 }
 
 fn contains_encoded_reserved_path_characters(value: &str) -> bool {
@@ -53,8 +60,21 @@ pub(crate) fn validate_limit(limit: u32, max: u32) -> Result<u32, Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::{required_path_segment, validate_limit};
+    use super::{required_path_segment, required_text, validate_limit};
     use crate::error::Error;
+
+    #[test]
+    fn required_text_rejects_blank_values() {
+        let error =
+            required_text("underlying_symbol", "   ").expect_err("blank values should fail");
+
+        match error {
+            Error::InvalidRequest(message) => {
+                assert!(message.contains("underlying_symbol"));
+            }
+            other => panic!("expected invalid request error, got {other:?}"),
+        }
+    }
 
     #[test]
     fn required_path_segment_rejects_blank_values() {
