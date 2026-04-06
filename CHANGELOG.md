@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.4 - 2026-04-05
+
+- Document the public Decimal policy in the workspace and crate READMEs.
+- Align the local Phase 5 assets notes and upcoming-phase guidance with the new Decimal baseline.
+- Record that future high-precision financial fields should default to Decimal before new resource phases begin.
+
 ## 0.5.3 - 2026-04-05
 
 - Replace the implemented assets financial fields with Decimal in the public Rust model.
