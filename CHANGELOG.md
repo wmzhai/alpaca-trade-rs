@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 - 2026-04-05
+
+- Add shared Decimal serde helpers for Alpaca response string/number parsing and per-endpoint string/number serialization.
+- Re-export rust_decimal::Decimal from alpaca_trade.
+- Establish the pre-Phase-6 numeric foundation without changing any resource family behavior yet.
+
 ## 0.5.0 - 2026-04-05
 
 - Finish Phase 5 by shipping the live-first `assets` Trading HTTP REST resource family.

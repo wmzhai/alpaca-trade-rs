@@ -1,5 +1,5 @@
 use alpaca_trade::{
-    Client, NoopObserver, RetryPolicy,
+    Client, Decimal, NoopObserver, RetryPolicy,
     account::Account,
     assets::{Asset, ListRequest as AssetsListRequest},
     calendar::{Calendar, ListRequest as CalendarListRequest},
@@ -43,6 +43,11 @@ fn public_api_exposes_account_assets_calendar_and_clock_types_and_accessors() {
     let _ = Calendar::default();
     let _ = CalendarListRequest::default();
     let _ = Clock::default();
+}
+
+#[test]
+fn public_api_exposes_decimal_root_type() {
+    let _ = Decimal::new(12345, 2);
 }
 
 #[test]

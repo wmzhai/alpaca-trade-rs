@@ -14,3 +14,4 @@ pub use client::{Client, ClientBuilder};
 pub use error::{Error, ErrorMeta};
 pub use observer::{ErrorEvent, NoopObserver, Observer, RequestStart, ResponseEvent, RetryEvent};
 pub use retry::RetryPolicy;
+pub use rust_decimal::Decimal;

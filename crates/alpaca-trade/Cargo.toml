@@ -12,6 +12,7 @@ exclude = ["/.agents/**", "/.github/**", "/AGENTS.md", "/docs/superpowers/**", "
 
 [dependencies]
 reqwest.workspace = true
+rust_decimal.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
