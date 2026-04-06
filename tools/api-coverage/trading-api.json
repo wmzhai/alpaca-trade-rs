@@ -143,7 +143,7 @@
           "convenience_status": "implemented",
           "mock_status": "not_planned",
           "live_test_status": "credential_gated",
-          "notes": "Phase 6 ships typed mirror support for the official list and get options-contract endpoints, preserves the official query words including `show_deliverables` and `ppind`, keeps the list response paginated, and does not add `list_all` convenience in the first release."
+          "notes": "Phase 6 ships typed mirror support for the official list options-contract endpoint, preserves the official query words including `show_deliverables` and `ppind`, keeps the list response paginated, and does not add `list_all` convenience in the first release."
         },
         {
           "operation": "get_option_contract_by_symbol_or_id",
@@ -154,7 +154,7 @@
           "convenience_status": "implemented",
           "mock_status": "not_planned",
           "live_test_status": "credential_gated",
-          "notes": "Phase 6 ships typed mirror support for the official list and get options-contract endpoints, preserves the official query words including `show_deliverables` and `ppind`, keeps the list response paginated, and does not add `list_all` convenience in the first release."
+          "notes": "Phase 6 ships typed mirror support for the official get options-contract endpoint, keeps direct lookup aligned with the official `symbol_or_id` path semantics, and covers the first live smoke path behind credential-gated Paper API tests."
         }
       ]
     },
