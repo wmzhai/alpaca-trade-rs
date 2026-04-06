@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.10 - 2026-04-06
+
+- Update the public workspace and crate READMEs to list `options_contracts` as implemented and move the next resource phase to `orders`.
+- Sync the Trading HTTP coverage manifest so the Phase 6 `options_contracts` family is marked implemented with credential-gated live coverage.
+- Keep the first `options_contracts` release on the paginated mirror surface without adding `list_all()`.
+
 ## 0.6.9 - 2026-04-06
 
 - Expand the centralized request-validation regression suite to cover `options_contracts.list` and `options_contracts.get` fail-fast behavior before transport.

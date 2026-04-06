@@ -132,29 +132,29 @@
       "family": "options_contracts",
       "phase": 6,
       "public_entry": "options_contracts()",
-      "status": "planned",
+      "status": "implemented",
       "operations": [
         {
           "operation": "list_option_contracts",
           "method": "GET",
           "path": "/v2/options/contracts",
           "reference": "https://docs.alpaca.markets/reference/get-options-contracts",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Options contract discovery endpoint."
+          "mirror_status": "implemented",
+          "convenience_status": "implemented",
+          "mock_status": "not_planned",
+          "live_test_status": "credential_gated",
+          "notes": "Phase 6 ships typed mirror support for the official list and get options-contract endpoints, preserves the official query words including `show_deliverables` and `ppind`, keeps the list response paginated, and does not add `list_all` convenience in the first release."
         },
         {
           "operation": "get_option_contract_by_symbol_or_id",
           "method": "GET",
           "path": "/v2/options/contracts/{symbol_or_id}",
           "reference": "https://docs.alpaca.markets/reference/get-option-contract-symbol_or_id",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Single contract lookup endpoint."
+          "mirror_status": "implemented",
+          "convenience_status": "implemented",
+          "mock_status": "not_planned",
+          "live_test_status": "credential_gated",
+          "notes": "Phase 6 ships typed mirror support for the official list and get options-contract endpoints, preserves the official query words including `show_deliverables` and `ppind`, keeps the list response paginated, and does not add `list_all` convenience in the first release."
         }
       ]
     },

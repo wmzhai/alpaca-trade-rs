@@ -4,9 +4,9 @@ Async Rust client for the non-crypto Alpaca Trading HTTP API.
 
 ## Current Milestone
 
-- Phase 5 milestone: `assets`
-- Implemented resources: `account`, `clock`, `calendar`, `assets`
-- Next resource phase: `options_contracts` (Phase 6)
+- Phase 6 milestone: `options_contracts`
+- Implemented resources: `account`, `clock`, `calendar`, `assets`, `options_contracts`
+- Next resource phase: `orders` (Phase 7)
 - Default retry behavior: automatic retry is limited to `GET`
 - Retry semantics: `max_get_attempts` counts total attempts, so `1` disables retry and `2` means one retry after the first failed `GET`
 - Numeric model policy: high-precision financial fields in the public Rust API use `alpaca_trade::Decimal`, while request/response wire shapes still mirror the official Alpaca contract

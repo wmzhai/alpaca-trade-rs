@@ -4,9 +4,9 @@
 
 ## Current Status
 
-- Phase 5 milestone: `assets`
-- Implemented resources: `account`, `clock`, `calendar`, `assets`
-- Next resource phase: `options_contracts` (Phase 6)
+- Phase 6 milestone: `options_contracts`
+- Implemented resources: `account`, `clock`, `calendar`, `assets`, `options_contracts`
+- Next resource phase: `orders` (Phase 7)
 - API surface: non-crypto Alpaca Trading HTTP REST only
 - Explicit exclusions: stream / websocket APIs, crypto trading APIs
 - Published crate: `alpaca-trade`
@@ -46,6 +46,32 @@ let assets = client
     })
     .await?;
 println!("{} {}", assets[0].symbol, assets[0].status);
+# Ok(())
+# }
+```
+
+```rust
+use alpaca_trade::Client;
+use alpaca_trade::options_contracts::{ContractStatus, ListRequest};
+
+# async fn demo() -> Result<(), alpaca_trade::Error> {
+let client = Client::builder()
+    .api_key(std::env::var("APCA_API_KEY_ID").expect("APCA_API_KEY_ID is required"))
+    .secret_key(std::env::var("APCA_API_SECRET_KEY").expect("APCA_API_SECRET_KEY is required"))
+    .paper()
+    .build()?;
+
+let response = client
+    .options_contracts()
+    .list(ListRequest {
+        underlying_symbols: Some(vec!["SPY".into()]),
+        status: Some(ContractStatus::Active),
+        limit: Some(1),
+        ..ListRequest::default()
+    })
+    .await?;
+
+println!("{}", response.option_contracts[0].symbol);
 # Ok(())
 # }
 ```
