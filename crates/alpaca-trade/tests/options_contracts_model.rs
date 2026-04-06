@@ -3,6 +3,7 @@ use alpaca_trade::options_contracts::{
     ContractStatus, ContractStyle, ContractType, DeliverableSettlementMethod,
     DeliverableSettlementType, DeliverableType, ListResponse, OptionContract,
 };
+use serde_json::json;
 use std::str::FromStr;
 
 #[test]
@@ -137,4 +138,128 @@ fn option_contract_rejects_missing_required_symbol() {
 
     let error = serde_json::from_str::<OptionContract>(json).expect_err("missing symbol must fail");
     assert!(error.to_string().contains("missing field `symbol`"));
+}
+
+#[test]
+fn option_contract_serializes_official_wire_words_and_decimal_strings() {
+    let contract: OptionContract = serde_json::from_value(json!({
+        "id": "98359ef7-5124-49f3-85ea-5cf02df6defa",
+        "symbol": "AAPL250620C00100000",
+        "name": "AAPL Jun 20 2025 100 Call",
+        "status": "active",
+        "tradable": true,
+        "expiration_date": "2025-06-20",
+        "root_symbol": "AAPL",
+        "underlying_symbol": "AAPL",
+        "underlying_asset_id": "b0b6dd9d-8b9b-48a9-ba46-b9d54906e415",
+        "type": "call",
+        "style": "american",
+        "strike_price": "100",
+        "multiplier": "100",
+        "size": "100",
+        "open_interest": "237",
+        "open_interest_date": "2023-12-11",
+        "close_price": "148.38",
+        "close_price_date": "2023-12-11",
+        "deliverables": [{
+            "type": "equity",
+            "symbol": "AAPL",
+            "asset_id": "b0b6dd9d-8b9b-48a9-ba46-b9d54906e415",
+            "amount": "100",
+            "allocation_percentage": "100",
+            "settlement_type": "T+2",
+            "settlement_method": "CCC",
+            "delayed_settlement": false
+        }]
+    }))
+    .expect("contract should deserialize");
+
+    let value = serde_json::to_value(&contract).expect("contract should serialize");
+
+    assert_eq!(
+        value,
+        json!({
+            "id": "98359ef7-5124-49f3-85ea-5cf02df6defa",
+            "symbol": "AAPL250620C00100000",
+            "name": "AAPL Jun 20 2025 100 Call",
+            "status": "active",
+            "tradable": true,
+            "expiration_date": "2025-06-20",
+            "root_symbol": "AAPL",
+            "underlying_symbol": "AAPL",
+            "underlying_asset_id": "b0b6dd9d-8b9b-48a9-ba46-b9d54906e415",
+            "type": "call",
+            "style": "american",
+            "strike_price": "100",
+            "multiplier": "100",
+            "size": "100",
+            "open_interest": "237",
+            "open_interest_date": "2023-12-11",
+            "close_price": "148.38",
+            "close_price_date": "2023-12-11",
+            "deliverables": [{
+                "type": "equity",
+                "symbol": "AAPL",
+                "asset_id": "b0b6dd9d-8b9b-48a9-ba46-b9d54906e415",
+                "amount": "100",
+                "allocation_percentage": "100",
+                "settlement_type": "T+2",
+                "settlement_method": "CCC",
+                "delayed_settlement": false
+            }]
+        })
+    );
+}
+
+#[test]
+fn deliverable_accepts_missing_asset_id_and_null_amount() {
+    let json = r#"
+    {
+      "id": "98359ef7-5124-49f3-85ea-5cf02df6defa",
+      "symbol": "AAPL250620C00100000",
+      "name": "AAPL Jun 20 2025 100 Call",
+      "status": "active",
+      "tradable": true,
+      "expiration_date": "2025-06-20",
+      "underlying_symbol": "AAPL",
+      "underlying_asset_id": "b0b6dd9d-8b9b-48a9-ba46-b9d54906e415",
+      "type": "call",
+      "style": "american",
+      "strike_price": "100",
+      "multiplier": "100",
+      "size": "100",
+      "deliverables": [
+        {
+          "type": "cash",
+          "symbol": "USD",
+          "amount": null,
+          "allocation_percentage": "100",
+          "settlement_type": "T+1",
+          "settlement_method": "CADF",
+          "delayed_settlement": true
+        }
+      ]
+    }
+    "#;
+
+    let contract: OptionContract = serde_json::from_str(json).expect("json should deserialize");
+
+    let deliverable = contract.deliverables.as_ref().unwrap().first().unwrap();
+    assert_eq!(deliverable.r#type, DeliverableType::Cash);
+    assert_eq!(deliverable.symbol, "USD");
+    assert_eq!(deliverable.asset_id, None);
+    assert_eq!(deliverable.amount, None);
+    assert_eq!(
+        deliverable.allocation_percentage,
+        Decimal::from_str("100").unwrap()
+    );
+    assert_eq!(
+        deliverable.settlement_type,
+        DeliverableSettlementType::TPlus1
+    );
+    assert_eq!(
+        deliverable.settlement_method,
+        DeliverableSettlementMethod::Cadf
+    );
+    assert!(deliverable.delayed_settlement);
 }
