@@ -4,13 +4,13 @@ Async Rust client for the non-crypto Alpaca Trading HTTP API.
 
 ## Current Milestone
 
-- Phase 6 milestone: `options_contracts`
-- Implemented resources: `account`, `clock`, `calendar`, `assets`, `options_contracts`
-- Next resource phase: `orders` (Phase 7)
+- Phase 7 milestone: `orders`
+- Implemented resources: `account`, `clock`, `calendar`, `assets`, `options_contracts`, `orders`
+- Next resource phase: `positions` (Phase 8)
 - Default retry behavior: automatic retry is limited to `GET`
 - Retry semantics: `max_get_attempts` counts total attempts, so `1` disables retry and `2` means one retry after the first failed `GET`
 - Numeric model policy: high-precision financial fields in the public Rust API use `alpaca_trade::Decimal`, while request/response wire shapes still mirror the official Alpaca contract
-- Benchmark note: Phase 6 reuses the existing read-only `GET` and pagination foundation, so the current milestone does not add a dedicated benchmark track
+- Benchmark note: Phase 7 continues to reuse the shared transport foundation, so the current milestone does not add a dedicated benchmark track
 
 ## Defaults
 
@@ -43,6 +43,31 @@ println!("{} {}", assets[0].symbol, assets[0].status);
 # }
 ```
 
+```rust
+use alpaca_trade::Client;
+use alpaca_trade::orders::{ListRequest, QueryOrderStatus};
+
+# async fn demo() -> Result<(), alpaca_trade::Error> {
+let client = Client::builder()
+    .api_key(std::env::var("APCA_API_KEY_ID").expect("APCA_API_KEY_ID is required"))
+    .secret_key(std::env::var("APCA_API_SECRET_KEY").expect("APCA_API_SECRET_KEY is required"))
+    .paper()
+    .build()?;
+
+let orders = client
+    .orders()
+    .list(ListRequest {
+        status: Some(QueryOrderStatus::Open),
+        limit: Some(10),
+        ..ListRequest::default()
+    })
+    .await?;
+
+println!("{}", orders.len());
+# Ok(())
+# }
+```
+
 ## Examples
 
 Set `APCA_API_KEY_ID` and `APCA_API_SECRET_KEY`, then run one of:
@@ -52,3 +77,9 @@ cargo run -p alpaca-trade --example client_builder
 cargo run -p alpaca-trade --example account_get
 cargo run -p alpaca-trade --example assets_list
 ```
+
+## Testing Notes
+
+- `orders_mutating` uses the shared `orders()` public API against dedicated Paper trading when `ALPACA_TRADE_ORDERS_TEST_ACCOUNT=1` is set during market hours.
+- When that dedicated Paper path is unavailable, the same mutating flow falls back to the internal `alpaca-trade-mock` stateful orders server.
+- The test support accepts both the standard `APCA_*` credential names and the repo-local `ALPACA_TRADE_*` aliases.

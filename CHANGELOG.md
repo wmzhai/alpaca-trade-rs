@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.7 - 2026-04-06
+
+- Promote `orders` to the Phase 7 workspace milestone in the public READMEs and move the next planned resource family to `positions`.
+- Document the dedicated Paper-vs-mock testing split for `orders_mutating`, including the `ALPACA_TRADE_ORDERS_TEST_ACCOUNT` gate for real `cancel_all()` coverage.
+- Mark the full orders family as implemented in `tools/api-coverage/trading-api.json`, including the alias endpoint and the Paper-gated-with-mock-fallback verification model.
+
 ## 0.7.6 - 2026-04-06
 
 - Add in-memory `alpaca-trade-mock` orders routes, shared state, deterministic fill rules, alias lookup, and batch cancel coverage for non-market-hour regression paths.

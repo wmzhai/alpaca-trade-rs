@@ -4,9 +4,9 @@
 
 ## Current Status
 
-- Phase 6 milestone: `options_contracts`
-- Implemented resources: `account`, `clock`, `calendar`, `assets`, `options_contracts`
-- Next resource phase: `orders` (Phase 7)
+- Phase 7 milestone: `orders`
+- Implemented resources: `account`, `clock`, `calendar`, `assets`, `options_contracts`, `orders`
+- Next resource phase: `positions` (Phase 8)
 - API surface: non-crypto Alpaca Trading HTTP REST only
 - Explicit exclusions: stream / websocket APIs, crypto trading APIs
 - Published crate: `alpaca-trade`
@@ -21,7 +21,7 @@
 ## Workspace
 
 - `crates/alpaca-trade`: async Trading API client
-- `crates/alpaca-trade-mock`: internal workspace helper for future market-hours-sensitive Trading API tests
+- `crates/alpaca-trade-mock`: internal workspace helper for stateful `orders` fallback tests outside dedicated Paper mutating windows
 - `tools/api-coverage/trading-api.json`: family-level coverage manifest for Trading HTTP REST audit work
 
 ## Implemented API
@@ -98,6 +98,7 @@ Run the full automated test suite with `cargo test --workspace -- --nocapture`.
 Notes:
 - `account_model`, `account_transport`, `clock_model`, `clock_transport`, `calendar_model`, `calendar_transport`, `assets_model`, `assets_transport`, `options_contracts_model`, and `options_contracts_transport` stay local/offline.
 - `account_live`, `clock_live`, `calendar_live`, `assets_live`, and `options_contracts_live` are the current `live_readonly` credential-gated smoke paths against the official Alpaca Paper API.
-- Future mutating families will follow the `paper_mutating_with_cleanup` or `mock_stateful` taxonomy instead of reusing the read-only smoke path.
+- `orders_mutating` automatically uses dedicated-account Paper mutating coverage during market hours and falls back to `alpaca-trade-mock` outside that window or when the dedicated-account marker is unavailable.
+- Set `ALPACA_TRADE_ORDERS_TEST_ACCOUNT=1` on the dedicated Paper test account to enable the real `paper_mutating_with_cleanup` path, including the guarded `cancel_all()` coverage.
 - The live test helper accepts both the standard `APCA_*` names and the repo-local `ALPACA_TRADE_*` aliases.
 - If `.env` credentials are missing, the live tests print skip messages and exit successfully, so a green local run may not include a real paper request.

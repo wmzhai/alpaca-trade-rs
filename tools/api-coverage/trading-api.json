@@ -1,6 +1,6 @@
 {
   "manifest_version": 1,
-  "generated_at": "2026-04-05",
+  "generated_at": "2026-04-06",
   "scope": {
     "api": "trading-http-rest",
     "default_environment": "paper",
@@ -162,84 +162,84 @@
       "family": "orders",
       "phase": 7,
       "public_entry": "orders()",
-      "status": "planned",
+      "status": "implemented",
       "operations": [
         {
           "operation": "list_orders",
           "method": "GET",
           "path": "/v2/orders",
           "reference": "https://docs.alpaca.markets/v1.3/reference/getallorders",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Lists orders with official filtering query parameters."
+          "mirror_status": "implemented",
+          "convenience_status": "implemented",
+          "mock_status": "implemented",
+          "live_test_status": "paper_gated_with_mock_fallback",
+          "notes": "Phase 7 ships typed mirror support for the official list orders endpoint, keeps the current query words intact, and covers the route through local transport tests plus the stateful mock regression path."
         },
         {
           "operation": "create_order",
           "method": "POST",
           "path": "/v2/orders",
           "reference": "https://docs.alpaca.markets/reference/postorder",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Non-crypto Trading HTTP REST scope only."
+          "mirror_status": "implemented",
+          "convenience_status": "implemented",
+          "mock_status": "implemented",
+          "live_test_status": "paper_gated_with_mock_fallback",
+          "notes": "Phase 7 ships typed mirror support for order creation and exercises the mutating path through dedicated Paper coverage when enabled or the stateful mock fallback otherwise."
         },
         {
           "operation": "cancel_all_orders",
           "method": "DELETE",
           "path": "/v2/orders",
           "reference": "https://docs.alpaca.markets/reference/deleteallorders-1",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Collection-level bulk cancellation endpoint."
+          "mirror_status": "implemented",
+          "convenience_status": "implemented",
+          "mock_status": "implemented",
+          "live_test_status": "paper_gated_with_mock_fallback",
+          "notes": "Collection-level cancellation keeps the official batch response shape, uses guarded real Paper coverage only on dedicated test accounts, and otherwise falls back to the stateful mock path."
         },
         {
           "operation": "get_order_by_id",
           "method": "GET",
           "path": "/v2/orders/{order_id}",
           "reference": "https://docs.alpaca.markets/v1.3/reference/getorderbyorderid",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "ID-addressed order lookup."
+          "mirror_status": "implemented",
+          "convenience_status": "implemented",
+          "mock_status": "implemented",
+          "live_test_status": "paper_gated_with_mock_fallback",
+          "notes": "ID-addressed lookup is implemented on the shared authenticated GET transport and is exercised from both transport tests and the mutating runtime path."
         },
         {
           "operation": "replace_order_by_id",
           "method": "PATCH",
           "path": "/v2/orders/{order_id}",
           "reference": "https://docs.alpaca.markets/reference/patchorderbyorderid-1",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Official replace-order endpoint."
+          "mirror_status": "implemented",
+          "convenience_status": "implemented",
+          "mock_status": "implemented",
+          "live_test_status": "paper_gated_with_mock_fallback",
+          "notes": "Order replacement is implemented on the shared authenticated PATCH transport with non-GET retry disabled and is covered through Paper-or-mock mutating regression flows."
         },
         {
           "operation": "cancel_order_by_id",
           "method": "DELETE",
           "path": "/v2/orders/{order_id}",
           "reference": "https://docs.alpaca.markets/reference/deleteorderbyorderid-1",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Single-order cancellation endpoint."
+          "mirror_status": "implemented",
+          "convenience_status": "implemented",
+          "mock_status": "implemented",
+          "live_test_status": "paper_gated_with_mock_fallback",
+          "notes": "Single-order cancellation accepts the official 204 no-content response and is covered through Paper-or-mock mutating regression flows."
         },
         {
           "operation": "get_order_by_client_order_id",
           "method": "GET",
           "path": "/v2/orders:by_client_order_id",
           "reference": "https://docs.alpaca.markets/reference/getorderbyclientorderid",
-          "mirror_status": "not_started",
-          "convenience_status": "not_started",
-          "mock_status": "not_started",
-          "live_test_status": "not_started",
-          "notes": "Alias endpoint using client order ID query parameters."
+          "mirror_status": "implemented",
+          "convenience_status": "implemented",
+          "mock_status": "implemented",
+          "live_test_status": "paper_gated_with_mock_fallback",
+          "notes": "The alias endpoint is implemented with the official /v2/orders:by_client_order_id shape and exercised through transport plus mutating regression coverage."
         }
       ]
     },
