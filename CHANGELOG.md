@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1 - 2026-04-07
+
+- Tighten the mock account cross-checks so filled stock orders now reconcile `account.cash` against the filled order's exact price-times-quantity delta.
+- Extend the mock-runtime `orders_mutating` stock fill regression to assert the same account cash reconciliation through the public client.
+- Record follow-up Phase 8 and Phase 9 testing notes so future `positions()` and `activities()` plans must add deeper cross-resource reconciliation, not just route readability checks.
+
 ## 0.9.0 - 2026-04-07
 
 - Add the pre-Phase-8 mock trading state foundation so `account`, `orders`, `positions`, and `activities` now share one account-scoped in-memory truth source.

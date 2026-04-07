@@ -1,7 +1,7 @@
 mod support;
 
 use alpaca_trade::Decimal;
-use alpaca_trade::orders::{CreateRequest, OrderSide, OrderType, TimeInForce};
+use alpaca_trade::orders::{CreateRequest, OrderSide, OrderStatus, OrderType, TimeInForce};
 use support::orders::orders_test_lock;
 
 #[tokio::test]
@@ -23,7 +23,7 @@ async fn account_client_reads_mock_cash_after_mock_fill() {
         .get()
         .await
         .expect("account before should read");
-    client
+    let filled = client
         .orders()
         .create(CreateRequest {
             symbol: Some("SPY".to_owned()),
@@ -36,13 +36,19 @@ async fn account_client_reads_mock_cash_after_mock_fill() {
         })
         .await
         .expect("mock market buy should fill");
+    assert_eq!(filled.status, OrderStatus::Filled);
     let after = client
         .account()
         .get()
         .await
         .expect("account after should read");
 
-    assert!(
-        after.cash.expect("cash should be present") < before.cash.expect("cash should be present")
-    );
+    let before_cash = before.cash.expect("cash should be present");
+    let after_cash = after.cash.expect("cash should be present");
+    let expected_cash_delta = filled
+        .filled_avg_price
+        .expect("filled mock order should expose filled_avg_price")
+        * filled.filled_qty;
+
+    assert_eq!(before_cash - after_cash, expected_cash_delta);
 }

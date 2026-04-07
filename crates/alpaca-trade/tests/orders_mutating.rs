@@ -305,6 +305,19 @@ async fn orders_mutating_stock_market_order_reaches_terminal_state() {
 
     let mut cleanup = CleanupTracker::new(false);
     let result: Result<(), alpaca_trade::Error> = async {
+        let mock_cash_before_open = if context.is_mock() {
+            Some(
+                context
+                    .trade_client
+                    .account()
+                    .get()
+                    .await?
+                    .cash
+                    .expect("mock account cash should be present before fill"),
+            )
+        } else {
+            None
+        };
         let opened = context
             .trade_client
             .orders()
@@ -323,8 +336,22 @@ async fn orders_mutating_stock_market_order_reaches_terminal_state() {
         let filled = wait_for_order_terminal_state(&context.trade_client, &opened.id).await?;
         assert_eq!(filled.status, OrderStatus::Filled);
         if context.is_mock() {
-            let account = context.trade_client.account().get().await?;
-            assert!(account.cash.is_some());
+            let after_cash = context
+                .trade_client
+                .account()
+                .get()
+                .await?
+                .cash
+                .expect("mock account cash should be present after fill");
+            let expected_cash_delta = filled
+                .filled_avg_price
+                .expect("filled mock order should expose filled_avg_price")
+                * filled.filled_qty;
+            assert_eq!(
+                mock_cash_before_open.expect("mock cash snapshot should be recorded before fill")
+                    - after_cash,
+                expected_cash_delta
+            );
         }
 
         let closed = context
