@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.9 - 2026-04-07
+
+- Add mock `positions` write routes for account-local close and option-position action flows.
+- Drive position-closing state changes through the same execution, cash, and activity ledgers used by mock orders.
+- Keep exercise and DNE behavior explicit and fail fast whenever the required live contract or quote context is unavailable.
+
 ## 0.8.8 - 2026-04-07
 
 - Add a lot-based mock position book driven by execution facts instead of inferring positions directly from order state.

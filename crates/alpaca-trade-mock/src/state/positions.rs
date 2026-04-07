@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use alpaca_trade::Decimal;
 use alpaca_trade::orders::{OrderSide, PositionIntent};
@@ -191,6 +192,7 @@ impl InstrumentPosition {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PositionBook {
     instrument_positions: HashMap<InstrumentKey, InstrumentPosition>,
+    do_not_exercise_overrides: HashMap<String, String>,
 }
 
 impl PositionBook {
@@ -260,6 +262,7 @@ impl PositionBook {
         };
 
         if should_remove {
+            self.do_not_exercise_overrides.remove(&execution.symbol);
             self.instrument_positions.remove(&key);
         }
     }
@@ -292,6 +295,19 @@ impl PositionBook {
                 None
             }
         })
+    }
+
+    pub fn record_do_not_exercise(&mut self, symbol: &str, occurred_at: &str) {
+        self.do_not_exercise_overrides
+            .insert(symbol.to_owned(), occurred_at.to_owned());
+    }
+
+    pub fn has_do_not_exercise_override(&self, symbol: &str) -> bool {
+        self.do_not_exercise_overrides.contains_key(symbol)
+    }
+
+    pub fn clear_do_not_exercise_override(&mut self, symbol: &str) {
+        self.do_not_exercise_overrides.remove(symbol);
     }
 }
 
@@ -387,4 +403,39 @@ where
     S: serde::Serializer,
 {
     serializer.serialize_str(&value.to_string())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum OptionContractType {
+    Call,
+    Put,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ParsedOptionSymbol {
+    pub(crate) underlying_symbol: String,
+    pub(crate) contract_type: OptionContractType,
+    pub(crate) strike_price: Decimal,
+}
+
+pub(crate) fn parse_option_symbol(symbol: &str) -> Option<ParsedOptionSymbol> {
+    let root_len = symbol.len().checked_sub(15)?;
+    let underlying_symbol = symbol.get(..root_len)?.trim().to_owned();
+    if underlying_symbol.is_empty() {
+        return None;
+    }
+
+    let contract_type = match symbol.get(root_len + 6..root_len + 7)? {
+        "C" => OptionContractType::Call,
+        "P" => OptionContractType::Put,
+        _ => return None,
+    };
+    let strike = symbol.get(root_len + 7..)?;
+    let strike_price = Decimal::from_str(strike).ok()? / Decimal::new(1000, 0);
+
+    Some(ParsedOptionSymbol {
+        underlying_symbol,
+        contract_type,
+        strike_price,
+    })
 }

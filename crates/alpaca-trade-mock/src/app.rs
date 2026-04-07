@@ -28,10 +28,21 @@ pub fn build_app_with_market_snapshot(market_snapshot: OrdersMarketSnapshot) -> 
     };
     let trading_router = Router::new()
         .route("/v2/account", get(handlers::account_get))
-        .route("/v2/positions", get(handlers::positions_list))
+        .route(
+            "/v2/positions",
+            get(handlers::positions_list).delete(handlers::positions_close_all),
+        )
         .route(
             "/v2/positions/{symbol_or_asset_id}",
-            get(handlers::positions_get),
+            get(handlers::positions_get).delete(handlers::positions_close),
+        )
+        .route(
+            "/v2/positions/{symbol_or_contract_id}/exercise",
+            axum::routing::post(handlers::positions_exercise),
+        )
+        .route(
+            "/v2/positions/{symbol_or_contract_id}/do-not-exercise",
+            axum::routing::post(handlers::positions_do_not_exercise),
         )
         .route(
             "/v2/orders",

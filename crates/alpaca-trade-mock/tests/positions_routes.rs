@@ -5,7 +5,9 @@ use alpaca_trade::Decimal;
 use alpaca_trade::orders::{CreateRequest, OrderClass, OrderSide, OrderType, TimeInForce};
 use reqwest::StatusCode;
 use serde_json::Value;
-use trade_support::orders::{discover_mleg_call_spread, orders_test_context, orders_test_lock};
+use trade_support::orders::{
+    discover_mleg_call_spread, discover_option_contract, orders_test_context, orders_test_lock,
+};
 
 fn mock_client(base_url: String, api_key: &str, secret_key: &str) -> alpaca_trade::Client {
     alpaca_trade::Client::builder()
@@ -49,6 +51,43 @@ async fn get_position(
         .json()
         .await
         .expect("position response should deserialize")
+}
+
+async fn delete_positions(
+    base_url: &str,
+    api_key: &str,
+    secret_key: &str,
+    symbol_or_asset_id: Option<&str>,
+) -> reqwest::Response {
+    let url = match symbol_or_asset_id {
+        Some(symbol_or_asset_id) => format!("{base_url}/v2/positions/{symbol_or_asset_id}"),
+        None => format!("{base_url}/v2/positions"),
+    };
+    reqwest::Client::new()
+        .delete(url)
+        .header("apca-api-key-id", api_key)
+        .header("apca-api-secret-key", secret_key)
+        .send()
+        .await
+        .expect("positions delete request should succeed")
+}
+
+async fn post_position_action(
+    base_url: &str,
+    api_key: &str,
+    secret_key: &str,
+    symbol_or_contract_id: &str,
+    action: &str,
+) -> reqwest::Response {
+    reqwest::Client::new()
+        .post(format!(
+            "{base_url}/v2/positions/{symbol_or_contract_id}/{action}"
+        ))
+        .header("apca-api-key-id", api_key)
+        .header("apca-api-secret-key", secret_key)
+        .send()
+        .await
+        .expect("positions action request should succeed")
 }
 
 fn find_position<'a>(positions: &'a [Value], symbol: &str) -> &'a Value {
@@ -226,4 +265,199 @@ async fn position_lookup_is_account_local() {
     assert_eq!(position_a["qty"], "1");
     assert_eq!(position_b["qty"], "2");
     assert_eq!(position_a["asset_id"], position_b["asset_id"]);
+}
+
+#[tokio::test]
+async fn close_position_by_symbol_creates_offsetting_execution_and_removes_position() {
+    let _guard = orders_test_lock().await;
+    let _credentials = trade_support::trade_credentials().expect(
+        "mock positions route tests require Alpaca credentials because positions valuation uses live market data",
+    );
+    let server = alpaca_trade_mock::spawn_test_server().await;
+    let client = mock_client(
+        server.base_url.clone(),
+        "mock-positions-close-key",
+        "mock-positions-close-secret",
+    );
+
+    client
+        .orders()
+        .create(CreateRequest {
+            symbol: Some("SPY".to_owned()),
+            qty: Some(Decimal::new(1, 0)),
+            side: Some(OrderSide::Buy),
+            r#type: Some(OrderType::Market),
+            time_in_force: Some(TimeInForce::Day),
+            client_order_id: Some("mock-positions-close-source".to_owned()),
+            ..CreateRequest::default()
+        })
+        .await
+        .expect("mock market buy should fill");
+    let cash_before_close = client
+        .account()
+        .get()
+        .await
+        .expect("account should be readable before closing");
+
+    let response = delete_positions(
+        &server.base_url,
+        "mock-positions-close-key",
+        "mock-positions-close-secret",
+        Some("SPY"),
+    )
+    .await;
+    assert!(response.status().is_success());
+
+    let cash_after_close = client
+        .account()
+        .get()
+        .await
+        .expect("account should be readable after closing");
+    assert!(
+        cash_after_close.cash.expect("cash should be present")
+            > cash_before_close.cash.expect("cash should be present")
+    );
+
+    let missing = reqwest::Client::new()
+        .get(format!("{}/v2/positions/SPY", server.base_url))
+        .header("apca-api-key-id", "mock-positions-close-key")
+        .header("apca-api-secret-key", "mock-positions-close-secret")
+        .send()
+        .await
+        .expect("position get after close should return a response");
+    assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn close_all_positions_only_affects_the_current_account() {
+    let _guard = orders_test_lock().await;
+    let _credentials = trade_support::trade_credentials().expect(
+        "mock positions route tests require Alpaca credentials because positions valuation uses live market data",
+    );
+    let server = alpaca_trade_mock::spawn_test_server().await;
+    let account_a = mock_client(
+        server.base_url.clone(),
+        "mock-positions-close-all-a",
+        "mock-positions-close-all-secret-a",
+    );
+    let account_b = mock_client(
+        server.base_url.clone(),
+        "mock-positions-close-all-b",
+        "mock-positions-close-all-secret-b",
+    );
+
+    for (client, id) in [
+        (&account_a, "mock-positions-close-all-order-a"),
+        (&account_b, "mock-positions-close-all-order-b"),
+    ] {
+        client
+            .orders()
+            .create(CreateRequest {
+                symbol: Some("SPY".to_owned()),
+                qty: Some(Decimal::new(1, 0)),
+                side: Some(OrderSide::Buy),
+                r#type: Some(OrderType::Market),
+                time_in_force: Some(TimeInForce::Day),
+                client_order_id: Some(id.to_owned()),
+                ..CreateRequest::default()
+            })
+            .await
+            .expect("mock market buy should fill");
+    }
+
+    let response = delete_positions(
+        &server.base_url,
+        "mock-positions-close-all-a",
+        "mock-positions-close-all-secret-a",
+        None,
+    )
+    .await;
+    assert!(response.status().is_success());
+
+    let positions_a = list_positions(
+        &server.base_url,
+        "mock-positions-close-all-a",
+        "mock-positions-close-all-secret-a",
+    )
+    .await;
+    let positions_b = list_positions(
+        &server.base_url,
+        "mock-positions-close-all-b",
+        "mock-positions-close-all-secret-b",
+    )
+    .await;
+    assert!(positions_a.is_empty());
+    assert_eq!(positions_b.len(), 1);
+    assert_eq!(positions_b[0]["symbol"], "SPY");
+}
+
+#[tokio::test]
+async fn exercise_route_requires_existing_option_position() {
+    let _guard = orders_test_lock().await;
+    let _credentials = trade_support::trade_credentials().expect(
+        "mock positions route tests require Alpaca credentials because positions valuation uses live market data",
+    );
+    let server = alpaca_trade_mock::spawn_test_server().await;
+
+    let response = post_position_action(
+        &server.base_url,
+        "mock-positions-exercise-key",
+        "mock-positions-exercise-secret",
+        "SPY260417C00550000",
+        "exercise",
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn do_not_exercise_route_records_override_without_fake_market_data() {
+    let _guard = orders_test_lock().await;
+    let _credentials = trade_support::trade_credentials().expect(
+        "mock positions route tests require Alpaca credentials because positions valuation uses live market data",
+    );
+    let context = orders_test_context().await;
+    let contract = discover_option_contract(&context, "SPY")
+        .await
+        .expect("dynamic option contract should be discoverable");
+    let server = alpaca_trade_mock::spawn_test_server().await;
+    let client = mock_client(
+        server.base_url.clone(),
+        "mock-positions-dne-key",
+        "mock-positions-dne-secret",
+    );
+
+    client
+        .orders()
+        .create(CreateRequest {
+            symbol: Some(contract.symbol.clone()),
+            qty: Some(Decimal::new(1, 0)),
+            side: Some(OrderSide::Buy),
+            r#type: Some(OrderType::Market),
+            time_in_force: Some(TimeInForce::Day),
+            client_order_id: Some("mock-positions-dne-order".to_owned()),
+            ..CreateRequest::default()
+        })
+        .await
+        .expect("mock option market buy should fill");
+
+    let response = post_position_action(
+        &server.base_url,
+        "mock-positions-dne-key",
+        "mock-positions-dne-secret",
+        &contract.symbol,
+        "do-not-exercise",
+    )
+    .await;
+    assert!(response.status().is_success());
+
+    let position = get_position(
+        &server.base_url,
+        "mock-positions-dne-key",
+        "mock-positions-dne-secret",
+        &contract.symbol,
+    )
+    .await;
+    assert_eq!(position["symbol"], contract.symbol);
+    assert_eq!(position["qty"], "1");
 }

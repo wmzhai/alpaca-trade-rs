@@ -9,4 +9,7 @@ pub use orders::{
     orders_cancel, orders_cancel_all, orders_create, orders_get, orders_get_by_client_order_id,
     orders_list, orders_replace,
 };
-pub use positions::{positions_get, positions_list};
+pub use positions::{
+    positions_close, positions_close_all, positions_do_not_exercise, positions_exercise,
+    positions_get, positions_list,
+};

@@ -112,6 +112,43 @@ async fn filled_execution_updates_lot_book_for_open_and_close_flows() {
     assert_eq!(qqq.open_lots[0].avg_entry_price, Decimal::new(50, 0));
 }
 
+#[test]
+fn do_not_exercise_override_clears_when_option_position_is_closed() {
+    let mut book = PositionBook::default();
+
+    book.apply_execution(&ExecutionFact::new(
+        1,
+        "option-buy-1".to_owned(),
+        None,
+        "mock-asset-SPY260417C00550000".to_owned(),
+        "SPY260417C00550000".to_owned(),
+        "us_option".to_owned(),
+        OrderSide::Buy,
+        Some(PositionIntent::BuyToOpen),
+        Decimal::new(1, 0),
+        Decimal::new(10, 0),
+        "2026-04-07T13:30:00Z".to_owned(),
+    ));
+    book.record_do_not_exercise("SPY260417C00550000", "2026-04-07T13:31:00Z");
+    assert!(book.has_do_not_exercise_override("SPY260417C00550000"));
+
+    book.apply_execution(&ExecutionFact::new(
+        2,
+        "option-sell-1".to_owned(),
+        None,
+        "mock-asset-SPY260417C00550000".to_owned(),
+        "SPY260417C00550000".to_owned(),
+        "us_option".to_owned(),
+        OrderSide::Sell,
+        Some(PositionIntent::SellToClose),
+        Decimal::new(1, 0),
+        Decimal::ZERO,
+        "2026-04-07T13:32:00Z".to_owned(),
+    ));
+
+    assert!(!book.has_do_not_exercise_override("SPY260417C00550000"));
+}
+
 #[tokio::test]
 async fn non_marketable_limit_order_is_recorded_as_new_without_cash_change() {
     let _guard = orders_test_lock().await;

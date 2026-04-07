@@ -10,7 +10,7 @@ mod market_data;
 mod positions;
 
 use activities::{ActivityEvent, ActivityEventKind};
-use positions::{ProjectedPosition, project_position};
+use positions::{OptionContractType, ProjectedPosition, parse_option_symbol, project_position};
 
 use alpaca_data::Client as DataClient;
 use alpaca_data::options::{
@@ -245,6 +245,189 @@ impl OrdersState {
                 ))
             })?;
         Ok(project_position(&position, market_snapshot))
+    }
+
+    pub(crate) async fn close_position(
+        &self,
+        symbol_or_asset_id: &str,
+    ) -> Result<(), OrdersStateError> {
+        let position = self
+            .account_snapshot()
+            .positions()
+            .find_open_position(symbol_or_asset_id)
+            .ok_or_else(|| {
+                OrdersStateError::NotFound(format!("position {symbol_or_asset_id} was not found"))
+            })?;
+        let market_quotes = self
+            .resolve_market_quotes(std::slice::from_ref(&position.instrument_identity.symbol))
+            .await?;
+        let current_price = market_quotes
+            .get(&position.instrument_identity.symbol)
+            .ok_or_else(|| {
+                OrdersStateError::MarketDataUnavailable(format!(
+                    "mock position close for {} requires live market data",
+                    position.instrument_identity.symbol
+                ))
+            })?
+            .mid_price();
+        let occurred_at = now_string();
+        let close_execution = ExecutionFact::new(
+            0,
+            Uuid::new_v4().to_string(),
+            None,
+            position.instrument_identity.asset_id.clone(),
+            position.instrument_identity.symbol.clone(),
+            position.instrument_identity.asset_class.clone(),
+            if position.net_qty > Decimal::ZERO {
+                OrderSide::Sell
+            } else {
+                OrderSide::Buy
+            },
+            Some(if position.net_qty > Decimal::ZERO {
+                PositionIntent::SellToClose
+            } else {
+                PositionIntent::BuyToClose
+            }),
+            position.net_qty.abs(),
+            current_price,
+            occurred_at.clone(),
+        );
+        let mut inner = self.trading_state.inner.write();
+        let account = inner
+            .entry(self.api_key.clone())
+            .or_insert_with(|| VirtualAccountState::new(&self.api_key));
+        apply_position_action_effects(
+            account,
+            ActivityEventKind::PositionClosed,
+            vec![close_execution],
+            position.instrument_identity.symbol.clone(),
+            position.instrument_identity.asset_class.clone(),
+            occurred_at,
+        );
+        Ok(())
+    }
+
+    pub(crate) async fn close_all_positions(&self) -> Result<(), OrdersStateError> {
+        let positions = self
+            .account_snapshot()
+            .positions()
+            .list_open_positions()
+            .into_iter()
+            .map(|position| position.instrument_identity.symbol)
+            .collect::<Vec<_>>();
+        for symbol in positions {
+            self.close_position(&symbol).await?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn do_not_exercise_position(
+        &self,
+        symbol_or_contract_id: &str,
+    ) -> Result<(), OrdersStateError> {
+        let occurred_at = now_string();
+        let mut inner = self.trading_state.inner.write();
+        let account = inner
+            .entry(self.api_key.clone())
+            .or_insert_with(|| VirtualAccountState::new(&self.api_key));
+        let position = account
+            .positions
+            .find_open_position(symbol_or_contract_id)
+            .ok_or_else(|| {
+                OrdersStateError::NotFound(format!(
+                    "position {symbol_or_contract_id} was not found"
+                ))
+            })?;
+        ensure_exercisable_long_option_position(&position)?;
+        account
+            .positions
+            .record_do_not_exercise(&position.instrument_identity.symbol, &occurred_at);
+        let action_id = Uuid::new_v4().to_string();
+        let sequence = account.next_sequence();
+        account.activities.push(ActivityEvent::new(
+            sequence,
+            ActivityEventKind::DoNotExercise,
+            action_id.clone(),
+            action_id,
+            None,
+            None,
+            position.instrument_identity.symbol,
+            position.instrument_identity.asset_class,
+            occurred_at,
+            Decimal::ZERO,
+        ));
+        Ok(())
+    }
+
+    pub(crate) fn exercise_position(
+        &self,
+        symbol_or_contract_id: &str,
+    ) -> Result<(), OrdersStateError> {
+        let occurred_at = now_string();
+        let mut inner = self.trading_state.inner.write();
+        let account = inner
+            .entry(self.api_key.clone())
+            .or_insert_with(|| VirtualAccountState::new(&self.api_key));
+        let option_position = account
+            .positions
+            .find_open_position(symbol_or_contract_id)
+            .ok_or_else(|| {
+                OrdersStateError::NotFound(format!(
+                    "position {symbol_or_contract_id} was not found"
+                ))
+            })?;
+        ensure_exercisable_long_option_position(&option_position)?;
+        let parsed =
+            parse_option_symbol(&option_position.instrument_identity.symbol).ok_or_else(|| {
+                OrdersStateError::Conflict(format!(
+                    "option symbol {} is not a parseable OCC contract",
+                    option_position.instrument_identity.symbol
+                ))
+            })?;
+        let option_qty = option_position.net_qty.abs();
+        let share_qty = option_qty * Decimal::new(100, 0);
+        let option_close = ExecutionFact::new(
+            0,
+            Uuid::new_v4().to_string(),
+            None,
+            option_position.instrument_identity.asset_id.clone(),
+            option_position.instrument_identity.symbol.clone(),
+            option_position.instrument_identity.asset_class.clone(),
+            OrderSide::Sell,
+            Some(PositionIntent::SellToClose),
+            option_qty,
+            Decimal::ZERO,
+            occurred_at.clone(),
+        );
+        let underlying_symbol = parsed.underlying_symbol.clone();
+        let underlying_execution = ExecutionFact::new(
+            0,
+            Uuid::new_v4().to_string(),
+            Some(option_close.order_id.clone()),
+            mock_asset_id(&underlying_symbol),
+            underlying_symbol.clone(),
+            "us_equity".to_owned(),
+            match parsed.contract_type {
+                OptionContractType::Call => OrderSide::Buy,
+                OptionContractType::Put => OrderSide::Sell,
+            },
+            Some(match parsed.contract_type {
+                OptionContractType::Call => PositionIntent::BuyToOpen,
+                OptionContractType::Put => PositionIntent::SellToOpen,
+            }),
+            share_qty,
+            parsed.strike_price,
+            occurred_at.clone(),
+        );
+        apply_position_action_effects(
+            account,
+            ActivityEventKind::Exercised,
+            vec![option_close, underlying_execution],
+            option_position.instrument_identity.symbol,
+            option_position.instrument_identity.asset_class,
+            occurred_at,
+        );
+        Ok(())
     }
 
     pub async fn create_order(&self, input: CreateOrderInput) -> Result<Order, OrdersStateError> {
@@ -729,7 +912,7 @@ fn record_create_effects(
         order.id.clone(),
         order.client_order_id.clone(),
         None,
-        order.status.clone(),
+        Some(order.status.clone()),
         order.symbol.clone(),
         order.asset_class.clone(),
         order.updated_at.clone(),
@@ -750,7 +933,7 @@ fn record_replace_effects(
         replacement.id.clone(),
         replacement.client_order_id.clone(),
         Some(replaced_order_id.to_owned()),
-        replacement.status.clone(),
+        Some(replacement.status.clone()),
         replacement.symbol.clone(),
         replacement.asset_class.clone(),
         replacement.updated_at.clone(),
@@ -770,7 +953,7 @@ fn record_cancel_effects(account: &mut VirtualAccountState, order: &Order) {
         order.id.clone(),
         order.client_order_id.clone(),
         None,
-        order.status.clone(),
+        Some(order.status.clone()),
         order.symbol.clone(),
         order.asset_class.clone(),
         order.updated_at.clone(),
@@ -798,7 +981,7 @@ fn record_filled_effects(
         order.id.clone(),
         order.client_order_id.clone(),
         related_order_id.map(str::to_owned),
-        order.status.clone(),
+        Some(order.status.clone()),
         order.symbol.clone(),
         order.asset_class.clone(),
         order
@@ -809,6 +992,37 @@ fn record_filled_effects(
     ));
 }
 
+fn apply_position_action_effects(
+    account: &mut VirtualAccountState,
+    kind: ActivityEventKind,
+    execution_facts: Vec<ExecutionFact>,
+    symbol: String,
+    asset_class: String,
+    occurred_at: String,
+) {
+    let action_id = Uuid::new_v4().to_string();
+    let mut total_cash_delta = Decimal::ZERO;
+    for execution in execution_facts {
+        total_cash_delta += cash_delta_for_execution(&execution);
+        account.positions.apply_execution(&execution);
+        account.executions.push(execution);
+    }
+    account.cash_ledger.apply_delta(total_cash_delta);
+    let sequence = account.next_sequence();
+    account.activities.push(ActivityEvent::new(
+        sequence,
+        kind,
+        action_id.clone(),
+        action_id,
+        None,
+        None,
+        symbol,
+        asset_class,
+        occurred_at,
+        total_cash_delta,
+    ));
+}
+
 fn cash_delta_for_filled_order(order: &Order, request_side: &OrderSide) -> Decimal {
     let notional = order.filled_avg_price.unwrap_or(Decimal::ZERO) * order.filled_qty;
     match request_side {
@@ -816,6 +1030,33 @@ fn cash_delta_for_filled_order(order: &Order, request_side: &OrderSide) -> Decim
         OrderSide::Sell => notional,
         _ => Decimal::ZERO,
     }
+}
+
+fn cash_delta_for_execution(execution: &ExecutionFact) -> Decimal {
+    let notional = execution.price * execution.qty;
+    match execution.side {
+        OrderSide::Buy | OrderSide::Unspecified => -notional,
+        OrderSide::Sell => notional,
+        _ => Decimal::ZERO,
+    }
+}
+
+fn ensure_exercisable_long_option_position(
+    position: &InstrumentPosition,
+) -> Result<(), OrdersStateError> {
+    if position.instrument_identity.asset_class != "us_option" {
+        return Err(OrdersStateError::Conflict(format!(
+            "position {} is not an option position",
+            position.instrument_identity.symbol
+        )));
+    }
+    if position.net_qty <= Decimal::ZERO {
+        return Err(OrdersStateError::Conflict(format!(
+            "position {} must be a long option position",
+            position.instrument_identity.symbol
+        )));
+    }
+    Ok(())
 }
 
 fn execution_facts_from_order(
@@ -1822,7 +2063,7 @@ mod tests {
                 existing.id.clone(),
                 existing.client_order_id.clone(),
                 None,
-                existing.status.clone(),
+                Some(existing.status.clone()),
                 existing.symbol.clone(),
                 existing.asset_class.clone(),
                 existing.updated_at.clone(),

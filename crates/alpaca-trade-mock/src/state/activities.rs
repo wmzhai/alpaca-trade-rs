@@ -7,6 +7,9 @@ pub(crate) enum ActivityEventKind {
     Filled,
     Canceled,
     Replaced,
+    PositionClosed,
+    Exercised,
+    DoNotExercise,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,7 +19,7 @@ pub(crate) struct ActivityEvent {
     pub(crate) order_id: String,
     pub(crate) client_order_id: String,
     pub(crate) related_order_id: Option<String>,
-    pub(crate) status: OrderStatus,
+    pub(crate) status: Option<OrderStatus>,
     pub(crate) symbol: String,
     pub(crate) asset_class: String,
     pub(crate) occurred_at: String,
@@ -30,7 +33,7 @@ impl ActivityEvent {
         order_id: String,
         client_order_id: String,
         related_order_id: Option<String>,
-        status: OrderStatus,
+        status: Option<OrderStatus>,
         symbol: String,
         asset_class: String,
         occurred_at: String,
