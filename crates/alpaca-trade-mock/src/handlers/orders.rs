@@ -6,7 +6,7 @@ use alpaca_trade::orders::{
     TimeInForce,
 };
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Deserializer};
@@ -135,7 +135,7 @@ pub struct ReplaceOrderBody {
 }
 
 pub async fn orders_create(
-    State(state): State<OrdersState>,
+    Extension(state): Extension<OrdersState>,
     Json(body): Json<CreateOrderBody>,
 ) -> RouteResult<Json<alpaca_trade::orders::Order>> {
     let order = state
@@ -172,7 +172,7 @@ pub async fn orders_create(
 }
 
 pub async fn orders_list(
-    State(state): State<OrdersState>,
+    Extension(state): Extension<OrdersState>,
     Query(query): Query<ListOrdersQuery>,
 ) -> RouteResult<Json<Vec<alpaca_trade::orders::Order>>> {
     let symbols = query.symbols.map(|symbols| {
@@ -192,7 +192,7 @@ pub async fn orders_list(
 }
 
 pub async fn orders_get(
-    State(state): State<OrdersState>,
+    Extension(state): Extension<OrdersState>,
     Path(order_id): Path<String>,
 ) -> RouteResult<Json<alpaca_trade::orders::Order>> {
     let order = state
@@ -202,7 +202,7 @@ pub async fn orders_get(
 }
 
 pub async fn orders_get_by_client_order_id(
-    State(state): State<OrdersState>,
+    Extension(state): Extension<OrdersState>,
     Query(query): Query<ByClientOrderIdQuery>,
 ) -> RouteResult<Json<alpaca_trade::orders::Order>> {
     let order = state
@@ -217,7 +217,7 @@ pub async fn orders_get_by_client_order_id(
 }
 
 pub async fn orders_replace(
-    State(state): State<OrdersState>,
+    Extension(state): Extension<OrdersState>,
     Path(order_id): Path<String>,
     Json(body): Json<ReplaceOrderBody>,
 ) -> RouteResult<Json<alpaca_trade::orders::Order>> {
@@ -238,7 +238,7 @@ pub async fn orders_replace(
 }
 
 pub async fn orders_cancel(
-    State(state): State<OrdersState>,
+    Extension(state): Extension<OrdersState>,
     Path(order_id): Path<String>,
 ) -> RouteResult<StatusCode> {
     state.cancel_order(&order_id)?;
@@ -246,7 +246,7 @@ pub async fn orders_cancel(
 }
 
 pub async fn orders_cancel_all(
-    State(state): State<OrdersState>,
+    Extension(state): Extension<OrdersState>,
 ) -> RouteResult<Json<Vec<alpaca_trade::orders::CancelAllOrderResult>>> {
     Ok(Json(state.cancel_all_orders()))
 }

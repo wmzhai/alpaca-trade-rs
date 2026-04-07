@@ -1,6 +1,13 @@
 use alpaca_trade::Decimal;
 
 #[test]
+fn mock_trading_state_starts_without_materialized_accounts() {
+    let state = alpaca_trade_mock::state::MockTradingState::new();
+
+    assert_eq!(state.account_count(), 0);
+}
+
+#[test]
 fn virtual_account_is_created_on_first_access_with_default_cash() {
     let state = alpaca_trade_mock::state::MockTradingState::new();
 

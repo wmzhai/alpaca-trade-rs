@@ -40,6 +40,10 @@ impl MockTradingState {
         Self::default()
     }
 
+    pub fn account_count(&self) -> usize {
+        self.inner.read().len()
+    }
+
     pub fn ensure_account(&self, api_key: &str) -> VirtualAccountState {
         let mut inner = self.inner.write();
         inner

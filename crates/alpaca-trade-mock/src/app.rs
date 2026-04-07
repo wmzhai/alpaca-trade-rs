@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use axum::{
     Router,
     body::Body,
@@ -7,6 +10,7 @@ use axum::{
     response::Response,
     routing::get,
 };
+use parking_lot::RwLock;
 
 use crate::auth::{MockHttpError, extract_auth};
 use crate::handlers;
@@ -17,7 +21,11 @@ pub fn build_app() -> Router {
 }
 
 pub fn build_app_with_market_snapshot(market_snapshot: OrdersMarketSnapshot) -> Router {
-    let trading_state = MockTradingState::new();
+    let route_state = TradingRouteState {
+        trading_state: MockTradingState::new(),
+        orders_states: Arc::new(RwLock::new(HashMap::new())),
+        market_snapshot,
+    };
     let orders_router = Router::new()
         .route(
             "/v2/orders",
@@ -35,9 +43,8 @@ pub fn build_app_with_market_snapshot(market_snapshot: OrdersMarketSnapshot) -> 
             "/v2/orders:by_client_order_id",
             get(handlers::orders_get_by_client_order_id),
         )
-        .with_state(OrdersState::new(market_snapshot))
         .route_layer(middleware::from_fn_with_state(
-            trading_state,
+            route_state,
             require_trading_auth,
         ));
 
@@ -46,16 +53,31 @@ pub fn build_app_with_market_snapshot(market_snapshot: OrdersMarketSnapshot) -> 
         .merge(orders_router)
 }
 
+#[derive(Clone)]
+struct TradingRouteState {
+    trading_state: MockTradingState,
+    orders_states: Arc<RwLock<HashMap<String, OrdersState>>>,
+    market_snapshot: OrdersMarketSnapshot,
+}
+
 async fn require_trading_auth(
-    State(trading_state): State<MockTradingState>,
-    request: Request<Body>,
+    State(state): State<TradingRouteState>,
+    mut request: Request<Body>,
     next: Next,
 ) -> Result<Response, MockHttpError> {
     let auth = extract_auth(request.headers())?;
     let api_key = auth.api_key;
     let _secret_key = auth.secret_key;
 
-    trading_state.ensure_account(&api_key);
+    state.trading_state.ensure_account(&api_key);
+    let orders_state = {
+        let mut orders_states = state.orders_states.write();
+        orders_states
+            .entry(api_key)
+            .or_insert_with(|| OrdersState::new(state.market_snapshot.clone()))
+            .clone()
+    };
+    request.extensions_mut().insert(orders_state);
 
     Ok(next.run(request).await)
 }
