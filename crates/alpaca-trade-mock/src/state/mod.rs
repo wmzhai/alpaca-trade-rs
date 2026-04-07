@@ -9,7 +9,9 @@ mod executions;
 mod market_data;
 mod positions;
 
-use activities::{ActivityEvent, ActivityEventKind};
+use activities::{
+    ActivityEvent, ActivityEventKind, ProjectedActivity, matches_activity_type, project_activity,
+};
 use positions::{OptionContractType, ProjectedPosition, parse_option_symbol, project_position};
 
 use alpaca_data::Client as DataClient;
@@ -428,6 +430,21 @@ impl OrdersState {
             occurred_at,
         );
         Ok(())
+    }
+
+    pub(crate) fn list_activities(&self, activity_type: Option<&str>) -> Vec<ProjectedActivity> {
+        let account = self.account_snapshot();
+        let mut events = account
+            .activities
+            .iter()
+            .filter(|event| {
+                activity_type
+                    .as_ref()
+                    .is_none_or(|filter| matches_activity_type(event, filter))
+            })
+            .collect::<Vec<_>>();
+        events.sort_by(|left, right| right.sequence.cmp(&left.sequence));
+        events.into_iter().map(project_activity).collect()
     }
 
     pub async fn create_order(&self, input: CreateOrderInput) -> Result<Order, OrdersStateError> {

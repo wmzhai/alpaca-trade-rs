@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.10 - 2026-04-07
+
+- Add mock `activities` routes backed by the shared trading-event ledger.
+- Reconnect the existing mock-based orders regressions so they verify account-linked state under the new foundation.
+- Extend mock route coverage across cross-resource consistency for orders, account, positions, and activities.
+
 ## 0.8.9 - 2026-04-07
 
 - Add mock `positions` write routes for account-local close and option-position action flows.

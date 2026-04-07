@@ -28,6 +28,11 @@ pub fn build_app_with_market_snapshot(market_snapshot: OrdersMarketSnapshot) -> 
     };
     let trading_router = Router::new()
         .route("/v2/account", get(handlers::account_get))
+        .route("/v2/account/activities", get(handlers::activities_list))
+        .route(
+            "/v2/account/activities/{activity_type}",
+            get(handlers::activities_by_type),
+        )
         .route(
             "/v2/positions",
             get(handlers::positions_list).delete(handlers::positions_close_all),

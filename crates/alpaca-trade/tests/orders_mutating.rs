@@ -255,7 +255,11 @@ async fn orders_mutating_stock_limit_create_get_replace_cancel_and_lookup_by_cli
         let replaceable = wait_for_order_statuses(
             &context.trade_client,
             &order.id,
-            &[OrderStatus::New, OrderStatus::Accepted],
+            &[
+                OrderStatus::New,
+                OrderStatus::Accepted,
+                OrderStatus::PendingNew,
+            ],
         )
         .await?;
 
@@ -318,6 +322,10 @@ async fn orders_mutating_stock_market_order_reaches_terminal_state() {
 
         let filled = wait_for_order_terminal_state(&context.trade_client, &opened.id).await?;
         assert_eq!(filled.status, OrderStatus::Filled);
+        if context.is_mock() {
+            let account = context.trade_client.account().get().await?;
+            assert!(account.cash.is_some());
+        }
 
         let closed = context
             .trade_client
@@ -403,7 +411,11 @@ async fn orders_mutating_option_limit_create_get_replace_cancel_and_lookup_by_cl
         let replaceable = wait_for_order_statuses(
             &context.trade_client,
             &order.id,
-            &[OrderStatus::New, OrderStatus::Accepted],
+            &[
+                OrderStatus::New,
+                OrderStatus::Accepted,
+                OrderStatus::PendingNew,
+            ],
         )
         .await?;
         let replacement_client_order_id =

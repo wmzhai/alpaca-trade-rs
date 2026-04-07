@@ -2,6 +2,7 @@
 mod trade_support;
 
 use alpaca_trade::Decimal;
+use alpaca_trade::account::Account;
 use alpaca_trade::orders::{
     CreateRequest, OrderClass, OrderSide, OrderStatus, OrderType, PositionIntent, QueryOrderStatus,
     ReplaceRequest, TimeInForce,
@@ -22,6 +23,45 @@ fn mock_client_with_api_key(base_url: String, api_key: &str) -> alpaca_trade::Cl
         .base_url(base_url)
         .build()
         .expect("mock client should build")
+}
+
+async fn get_account(base_url: &str, api_key: &str) -> Account {
+    let response = reqwest::Client::new()
+        .get(format!("{base_url}/v2/account"))
+        .header("apca-api-key-id", api_key)
+        .header("apca-api-secret-key", "mock-secret-key")
+        .send()
+        .await
+        .expect("account request should succeed");
+    assert!(response.status().is_success());
+    response.json().await.expect("account should deserialize")
+}
+
+async fn get_positions(base_url: &str, api_key: &str) -> Vec<serde_json::Value> {
+    let response = reqwest::Client::new()
+        .get(format!("{base_url}/v2/positions"))
+        .header("apca-api-key-id", api_key)
+        .header("apca-api-secret-key", "mock-secret-key")
+        .send()
+        .await
+        .expect("positions request should succeed");
+    assert!(response.status().is_success());
+    response.json().await.expect("positions should deserialize")
+}
+
+async fn get_fill_activities(base_url: &str, api_key: &str) -> Vec<serde_json::Value> {
+    let response = reqwest::Client::new()
+        .get(format!("{base_url}/v2/account/activities/FILL"))
+        .header("apca-api-key-id", api_key)
+        .header("apca-api-secret-key", "mock-secret-key")
+        .send()
+        .await
+        .expect("activities request should succeed");
+    assert!(response.status().is_success());
+    response
+        .json()
+        .await
+        .expect("activities should deserialize")
 }
 
 fn assert_mleg_parent_shape(order: &alpaca_trade::orders::Order, expected_leg_count: usize) {
@@ -158,6 +198,16 @@ async fn market_orders_fill_immediately_for_stocks_and_dynamically_discovered_op
         .await
         .expect("mock stock market create should succeed");
     assert_eq!(stock.status, OrderStatus::Filled);
+    let account = get_account(&server.base_url, "mock-api-key").await;
+    assert!(account.cash.expect("cash should be present") < Decimal::new(1_000_000, 0));
+    let positions = get_positions(&server.base_url, "mock-api-key").await;
+    assert!(positions.iter().any(|position| position["symbol"] == "SPY"));
+    let fills = get_fill_activities(&server.base_url, "mock-api-key").await;
+    assert!(
+        fills
+            .iter()
+            .any(|activity| activity["client_order_id"] == "mock-stock-market-route-1")
+    );
 
     let option = client
         .orders()
