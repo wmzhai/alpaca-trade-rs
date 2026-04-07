@@ -6,6 +6,7 @@ use crate::state::OrdersState;
 pub fn build_router(state: OrdersState) -> Router {
     Router::new()
         .route("/health", get(handlers::health))
+        .route("/v2/account", get(handlers::account_get))
         .route(
             "/v2/orders",
             get(handlers::orders_list)

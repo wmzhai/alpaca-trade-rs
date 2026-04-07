@@ -41,6 +41,23 @@ async fn orders_route_requires_apca_api_key_headers() {
 }
 
 #[tokio::test]
+async fn account_route_requires_apca_api_key_headers() {
+    let app = alpaca_trade_mock::build_app();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v2/account")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .expect("request should succeed");
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
 async fn orders_are_isolated_per_apca_api_key() {
     let app = alpaca_trade_mock::build_app_with_market_snapshot(
         alpaca_trade_mock::OrdersMarketSnapshot::default().with_instrument(

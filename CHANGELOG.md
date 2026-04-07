@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.7 - 2026-04-07
+
+- Add mock `GET /v2/account` backed by the shared account-scoped trading state.
+- Reflect order-driven cash changes through the existing public `account()` client when talking to the mock server.
+- Keep non-trading account fields on stable defaults while preserving cash and valuation-related fields as linked projections.
+
 ## 0.8.6 - 2026-04-07
 
 - Migrate mock `orders` onto account-scoped state so different API keys no longer share order history or alias lookups.

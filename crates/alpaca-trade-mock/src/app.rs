@@ -26,7 +26,8 @@ pub fn build_app_with_market_snapshot(market_snapshot: OrdersMarketSnapshot) -> 
         orders_states: Arc::new(RwLock::new(HashMap::new())),
         market_snapshot,
     };
-    let orders_router = Router::new()
+    let trading_router = Router::new()
+        .route("/v2/account", get(handlers::account_get))
         .route(
             "/v2/orders",
             get(handlers::orders_list)
@@ -50,7 +51,7 @@ pub fn build_app_with_market_snapshot(market_snapshot: OrdersMarketSnapshot) -> 
 
     Router::new()
         .route("/health", get(handlers::health))
-        .merge(orders_router)
+        .merge(trading_router)
 }
 
 #[derive(Clone)]

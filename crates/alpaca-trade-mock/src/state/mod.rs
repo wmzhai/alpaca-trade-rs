@@ -176,6 +176,11 @@ impl OrdersState {
         self.trading_state.ensure_account(&self.api_key)
     }
 
+    pub fn project_account(&self) -> alpaca_trade::account::Account {
+        let account = self.account_snapshot();
+        account::project_account(&account)
+    }
+
     pub async fn create_order(&self, input: CreateOrderInput) -> Result<Order, OrdersStateError> {
         let order_class = input.order_class.clone().unwrap_or(OrderClass::Simple);
         let request_side = input.side.clone().unwrap_or(OrderSide::Buy);
@@ -1627,7 +1632,10 @@ mod tests {
         assert!(matches!(error, OrdersStateError::MarketDataUnavailable(_)));
         assert!(account.orders.is_empty());
         assert!(account.client_order_ids.is_empty());
-        assert_eq!(account.cash_ledger.cash_balance(), Decimal::new(1_000_000, 0));
+        assert_eq!(
+            account.cash_ledger.cash_balance(),
+            Decimal::new(1_000_000, 0)
+        );
         assert!(account.executions.is_empty());
         assert!(account.activities.is_empty());
     }
@@ -1669,10 +1677,9 @@ mod tests {
             let account = inner
                 .entry(state.api_key.clone())
                 .or_insert_with(|| VirtualAccountState::new(&state.api_key));
-            account.client_order_ids.insert(
-                existing.client_order_id.clone(),
-                existing.id.clone(),
-            );
+            account
+                .client_order_ids
+                .insert(existing.client_order_id.clone(), existing.id.clone());
             account.orders.insert(
                 existing.id.clone(),
                 StoredOrder {
@@ -1723,7 +1730,10 @@ mod tests {
                 .map(String::as_str),
             Some(existing.id.as_str())
         );
-        assert_eq!(account.cash_ledger.cash_balance(), Decimal::new(1_000_000, 0));
+        assert_eq!(
+            account.cash_ledger.cash_balance(),
+            Decimal::new(1_000_000, 0)
+        );
         assert!(account.executions.is_empty());
         assert_eq!(account.activities.len(), 1);
     }

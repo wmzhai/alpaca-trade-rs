@@ -3,7 +3,9 @@ mod trade_support;
 
 use alpaca_trade::Decimal;
 use alpaca_trade::orders::{OrderSide, OrderStatus, OrderType, TimeInForce};
-use alpaca_trade_mock::state::{CreateOrderInput, MockTradingState, OrdersState, ReplaceOrderInput};
+use alpaca_trade_mock::state::{
+    CreateOrderInput, MockTradingState, OrdersState, ReplaceOrderInput,
+};
 use trade_support::orders::{orders_test_context, orders_test_lock, stock_price_context};
 
 #[test]
@@ -138,7 +140,11 @@ async fn create_quote_failure_leaves_account_state_untouched() {
     assert_eq!(account.execution_count(), 0);
     assert_eq!(account.activity_count(), 0);
     assert!(state.list_orders(Default::default()).is_empty());
-    assert!(state.get_by_client_order_id("mock-state-quote-failure").is_none());
+    assert!(
+        state
+            .get_by_client_order_id("mock-state-quote-failure")
+            .is_none()
+    );
 }
 
 #[tokio::test]
