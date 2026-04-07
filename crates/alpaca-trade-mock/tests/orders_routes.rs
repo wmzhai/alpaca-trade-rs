@@ -12,8 +12,12 @@ use trade_support::orders::{
 };
 
 fn mock_client(base_url: String) -> alpaca_trade::Client {
+    mock_client_with_api_key(base_url, "mock-api-key")
+}
+
+fn mock_client_with_api_key(base_url: String, api_key: &str) -> alpaca_trade::Client {
     alpaca_trade::Client::builder()
-        .api_key("mock-api-key")
+        .api_key(api_key)
         .secret_key("mock-secret-key")
         .base_url(base_url)
         .build()
@@ -62,7 +66,7 @@ async fn stock_limit_orders_cover_list_get_replace_cancel_and_alias_lookup() {
         .await
         .expect("mock create should succeed");
 
-    assert_eq!(created.status, OrderStatus::Accepted);
+    assert_eq!(created.status, OrderStatus::New);
 
     let listed = client
         .orders()
@@ -102,7 +106,7 @@ async fn stock_limit_orders_cover_list_get_replace_cancel_and_alias_lookup() {
         replaced.limit_price,
         Some(stock.more_conservative_buy_limit_price)
     );
-    assert_eq!(replaced.status, OrderStatus::Accepted);
+    assert_eq!(replaced.status, OrderStatus::New);
 
     let replaced_source = client
         .orders()
@@ -200,7 +204,7 @@ async fn mleg_limit_orders_cover_create_get_list_alias_replace_and_cancel() {
         })
         .await
         .expect("mock mleg create should succeed");
-    assert_eq!(created.status, OrderStatus::Accepted);
+    assert_eq!(created.status, OrderStatus::New);
     assert_mleg_parent_shape(&created, multi_leg.legs.len());
 
     let fetched = client
@@ -246,7 +250,7 @@ async fn mleg_limit_orders_cover_create_get_list_alias_replace_and_cancel() {
 
     assert_ne!(replaced.id, created.id);
     assert_eq!(replaced.replaces.as_deref(), Some(created.id.as_str()));
-    assert_eq!(replaced.status, OrderStatus::Accepted);
+    assert_eq!(replaced.status, OrderStatus::New);
     assert_mleg_parent_shape(&replaced, multi_leg.legs.len());
     assert_ne!(replaced.client_order_id, created.client_order_id);
 
@@ -258,7 +262,7 @@ async fn mleg_limit_orders_cover_create_get_list_alias_replace_and_cancel() {
     for (old_leg, new_leg) in created_legs.iter().zip(replaced_legs.iter()) {
         assert_ne!(new_leg.id, old_leg.id);
         assert_eq!(new_leg.replaces.as_deref(), Some(old_leg.id.as_str()));
-        assert_eq!(new_leg.status, OrderStatus::Accepted);
+        assert_eq!(new_leg.status, OrderStatus::New);
     }
 
     client
@@ -382,7 +386,7 @@ async fn cancel_all_returns_each_canceled_open_order() {
             })
             .await
             .expect("mock create should succeed");
-        assert_eq!(created.status, OrderStatus::Accepted);
+        assert_eq!(created.status, OrderStatus::New);
     }
 
     let canceled = client
@@ -399,4 +403,88 @@ async fn cancel_all_returns_each_canceled_open_order() {
             .map(|order| order.status == OrderStatus::Canceled)
             .unwrap_or(false)
     }));
+}
+
+#[tokio::test]
+async fn get_by_client_order_id_is_account_local() {
+    let _guard = orders_test_lock().await;
+    let context = orders_test_context().await;
+    let stock = stock_price_context(&context, "SPY")
+        .await
+        .expect("live stock quote should be available for mock route tests");
+    let server = alpaca_trade_mock::spawn_test_server().await;
+    let first_client = mock_client_with_api_key(server.base_url.clone(), "mock-api-key-a");
+    let second_client = mock_client_with_api_key(server.base_url.clone(), "mock-api-key-b");
+
+    let first = first_client
+        .orders()
+        .create(CreateRequest {
+            symbol: Some("SPY".to_owned()),
+            qty: Some(Decimal::new(1, 0)),
+            side: Some(OrderSide::Buy),
+            r#type: Some(OrderType::Limit),
+            time_in_force: Some(TimeInForce::Day),
+            limit_price: Some(stock.non_marketable_buy_limit_price),
+            client_order_id: Some("shared-client-order-id".to_owned()),
+            ..CreateRequest::default()
+        })
+        .await
+        .expect("first mock create should succeed");
+    let second = second_client
+        .orders()
+        .create(CreateRequest {
+            symbol: Some("SPY".to_owned()),
+            qty: Some(Decimal::new(1, 0)),
+            side: Some(OrderSide::Buy),
+            r#type: Some(OrderType::Limit),
+            time_in_force: Some(TimeInForce::Day),
+            limit_price: Some(stock.non_marketable_buy_limit_price),
+            client_order_id: Some("shared-client-order-id".to_owned()),
+            ..CreateRequest::default()
+        })
+        .await
+        .expect("second mock create should succeed");
+
+    let first_lookup = first_client
+        .orders()
+        .get_by_client_order_id("shared-client-order-id")
+        .await
+        .expect("first client should resolve its own order");
+    let second_lookup = second_client
+        .orders()
+        .get_by_client_order_id("shared-client-order-id")
+        .await
+        .expect("second client should resolve its own order");
+
+    assert_eq!(first_lookup.id, first.id);
+    assert_eq!(second_lookup.id, second.id);
+    assert_ne!(first_lookup.id, second_lookup.id);
+}
+
+#[tokio::test]
+async fn non_marketable_limit_orders_now_rest_in_new_status() {
+    let _guard = orders_test_lock().await;
+    let context = orders_test_context().await;
+    let stock = stock_price_context(&context, "SPY")
+        .await
+        .expect("live stock quote should be available for mock route tests");
+    let server = alpaca_trade_mock::spawn_test_server().await;
+    let client = mock_client(server.base_url.clone());
+
+    let created = client
+        .orders()
+        .create(CreateRequest {
+            symbol: Some("SPY".to_owned()),
+            qty: Some(Decimal::new(1, 0)),
+            side: Some(OrderSide::Buy),
+            r#type: Some(OrderType::Limit),
+            time_in_force: Some(TimeInForce::Day),
+            limit_price: Some(stock.non_marketable_buy_limit_price),
+            client_order_id: Some("mock-stock-limit-route-new-status".to_owned()),
+            ..CreateRequest::default()
+        })
+        .await
+        .expect("mock create should succeed");
+
+    assert_eq!(created.status, OrderStatus::New);
 }

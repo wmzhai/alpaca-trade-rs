@@ -1,4 +1,4 @@
-use axum::{Router, routing::get};
+use axum::{Extension, Router, routing::get};
 
 use crate::handlers;
 use crate::state::OrdersState;
@@ -22,5 +22,5 @@ pub fn build_router(state: OrdersState) -> Router {
             "/v2/orders:by_client_order_id",
             get(handlers::orders_get_by_client_order_id),
         )
-        .with_state(state)
+        .layer(Extension(state))
 }

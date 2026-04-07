@@ -73,8 +73,14 @@ async fn require_trading_auth(
     let orders_state = {
         let mut orders_states = state.orders_states.write();
         orders_states
-            .entry(api_key)
-            .or_insert_with(|| OrdersState::new(state.market_snapshot.clone()))
+            .entry(api_key.clone())
+            .or_insert_with(|| {
+                OrdersState::new(
+                    state.trading_state.clone(),
+                    api_key,
+                    state.market_snapshot.clone(),
+                )
+            })
             .clone()
     };
     request.extensions_mut().insert(orders_state);

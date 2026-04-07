@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.6 - 2026-04-07
+
+- Migrate mock `orders` onto account-scoped state so different API keys no longer share order history or alias lookups.
+- Record non-marketable resting orders as `new` while keeping fills responsible for all cash-changing effects.
+- Add execution and activity ledgers as the first shared facts behind future `account`, `positions`, and `activities` projections.
+
 ## 0.8.5 - 2026-04-07
 
 - Add the account-scoped mock trading state skeleton with lazy account creation keyed by `apca-api-key-id`.

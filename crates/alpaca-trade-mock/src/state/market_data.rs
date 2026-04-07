@@ -27,6 +27,10 @@ impl InstrumentSnapshot {
             ask,
         }
     }
+
+    pub fn mid_price(&self) -> Decimal {
+        mid_price(self.bid, self.ask)
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -57,4 +61,8 @@ impl OrdersMarketSnapshot {
             }
         })
     }
+}
+
+pub fn mid_price(bid: Decimal, ask: Decimal) -> Decimal {
+    ((bid + ask) / Decimal::new(2, 0)).round_dp(2)
 }

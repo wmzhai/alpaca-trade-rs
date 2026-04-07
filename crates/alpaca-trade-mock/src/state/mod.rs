@@ -4,7 +4,12 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 mod account;
+mod activities;
+mod executions;
 mod market_data;
+
+use activities::{ActivityEvent, ActivityEventKind};
+use executions::ExecutionFact;
 
 use alpaca_data::Client as DataClient;
 use alpaca_data::options::{Snapshot as OptionSnapshot, SnapshotsRequest};
@@ -19,7 +24,7 @@ use parking_lot::RwLock;
 use uuid::Uuid;
 
 pub use account::{AccountProfile, CashLedger};
-pub use market_data::{DEFAULT_STOCK_SYMBOL, InstrumentSnapshot, OrdersMarketSnapshot};
+pub use market_data::{DEFAULT_STOCK_SYMBOL, InstrumentSnapshot, OrdersMarketSnapshot, mid_price};
 
 const API_KEY_CANDIDATES: [&str; 2] = ["ALPACA_TRADE_API_KEY", "APCA_API_KEY_ID"];
 const SECRET_KEY_CANDIDATES: [&str; 2] = ["ALPACA_TRADE_SECRET_KEY", "APCA_API_SECRET_KEY"];
@@ -31,8 +36,13 @@ pub struct MockTradingState {
 
 #[derive(Debug, Clone)]
 pub struct VirtualAccountState {
-    pub account_profile: AccountProfile,
-    pub cash_ledger: CashLedger,
+    pub(crate) account_profile: AccountProfile,
+    pub(crate) cash_ledger: CashLedger,
+    pub(crate) orders: HashMap<String, StoredOrder>,
+    pub(crate) client_order_ids: HashMap<String, String>,
+    pub(crate) executions: Vec<ExecutionFact>,
+    pub(crate) activities: Vec<ActivityEvent>,
+    pub(crate) sequence_clock: u64,
 }
 
 impl MockTradingState {
@@ -58,25 +68,46 @@ impl VirtualAccountState {
         Self {
             account_profile: AccountProfile::new(api_key),
             cash_ledger: CashLedger::seeded_default(),
+            orders: HashMap::new(),
+            client_order_ids: HashMap::new(),
+            executions: Vec::new(),
+            activities: Vec::new(),
+            sequence_clock: 0,
         }
+    }
+
+    fn next_sequence(&mut self) -> u64 {
+        self.sequence_clock += 1;
+        self.sequence_clock
+    }
+
+    pub fn account_profile(&self) -> &AccountProfile {
+        &self.account_profile
+    }
+
+    pub fn cash_ledger(&self) -> &CashLedger {
+        &self.cash_ledger
+    }
+
+    pub fn execution_count(&self) -> usize {
+        self.executions.len()
+    }
+
+    pub fn activity_count(&self) -> usize {
+        self.activities.len()
     }
 }
 
 #[derive(Clone)]
 pub struct OrdersState {
-    inner: Arc<RwLock<OrdersStateInner>>,
+    trading_state: MockTradingState,
+    api_key: String,
+    market_snapshot: OrdersMarketSnapshot,
     data_client: Option<DataClient>,
 }
 
-#[derive(Debug)]
-struct OrdersStateInner {
-    market_snapshot: OrdersMarketSnapshot,
-    orders: HashMap<String, StoredOrder>,
-    client_order_ids: HashMap<String, String>,
-}
-
 #[derive(Debug, Clone)]
-struct StoredOrder {
+pub(crate) struct StoredOrder {
     order: Order,
     request_side: OrderSide,
 }
@@ -128,15 +159,21 @@ pub enum OrdersStateError {
 }
 
 impl OrdersState {
-    pub fn new(market_snapshot: OrdersMarketSnapshot) -> Self {
+    pub fn new(
+        trading_state: MockTradingState,
+        api_key: impl Into<String>,
+        market_snapshot: OrdersMarketSnapshot,
+    ) -> Self {
         Self {
-            inner: Arc::new(RwLock::new(OrdersStateInner {
-                market_snapshot,
-                orders: HashMap::new(),
-                client_order_ids: HashMap::new(),
-            })),
+            trading_state,
+            api_key: api_key.into(),
+            market_snapshot,
             data_client: data_client_from_environment(),
         }
+    }
+
+    pub fn account_snapshot(&self) -> VirtualAccountState {
+        self.trading_state.ensure_account(&self.api_key)
     }
 
     pub async fn create_order(&self, input: CreateOrderInput) -> Result<Order, OrdersStateError> {
@@ -152,16 +189,6 @@ impl OrdersState {
             .client_order_id
             .clone()
             .unwrap_or_else(|| format!("mock-order-{}", Uuid::new_v4()));
-
-        {
-            let inner = self.inner.read();
-            if inner.client_order_ids.contains_key(&client_order_id) {
-                return Err(OrdersStateError::Conflict(format!(
-                    "client_order_id {client_order_id} already exists"
-                )));
-            }
-        }
-
         let market_quotes = self
             .resolve_market_quotes(&requested_symbols(
                 input.symbol.as_deref(),
@@ -219,7 +246,7 @@ impl OrdersState {
             notional: input.notional,
             qty: input.qty,
             order_class: order_class.clone(),
-            order_type: order_type,
+            order_type,
             side: if order_class == OrderClass::Mleg {
                 OrderSide::Unspecified
             } else {
@@ -244,23 +271,35 @@ impl OrdersState {
         });
         apply_fill_rules(&mut order, &request_side, &market_quotes);
 
-        let mut inner = self.inner.write();
-        inner
+        let mut inner = self.trading_state.inner.write();
+        let account = inner
+            .entry(self.api_key.clone())
+            .or_insert_with(|| VirtualAccountState::new(&self.api_key));
+        if account.client_order_ids.contains_key(&client_order_id) {
+            return Err(OrdersStateError::Conflict(format!(
+                "client_order_id {client_order_id} already exists"
+            )));
+        }
+        account
             .client_order_ids
             .insert(client_order_id, order_id.clone());
-        inner.orders.insert(
+        account.orders.insert(
             order_id,
             StoredOrder {
                 order: order.clone(),
-                request_side,
+                request_side: request_side.clone(),
             },
         );
+        record_create_effects(account, &order, &request_side);
 
         Ok(order)
     }
 
     pub fn list_orders(&self, filter: ListOrdersFilter) -> Vec<Order> {
-        let inner = self.inner.read();
+        let inner = self.trading_state.inner.read();
+        let Some(account) = inner.get(&self.api_key) else {
+            return Vec::new();
+        };
         let symbol_filter = filter.symbols.map(|symbols| {
             symbols
                 .into_iter()
@@ -269,7 +308,7 @@ impl OrdersState {
                 .collect::<HashSet<_>>()
         });
 
-        let mut orders = inner
+        let mut orders = account
             .orders
             .values()
             .filter(|stored| {
@@ -291,17 +330,19 @@ impl OrdersState {
     }
 
     pub fn get_order(&self, order_id: &str) -> Option<Order> {
-        self.inner
+        self.trading_state
+            .inner
             .read()
-            .orders
-            .get(order_id)
+            .get(&self.api_key)
+            .and_then(|account| account.orders.get(order_id))
             .map(|stored| stored.order.clone())
     }
 
     pub fn get_by_client_order_id(&self, client_order_id: &str) -> Option<Order> {
-        let inner = self.inner.read();
-        let order_id = inner.client_order_ids.get(client_order_id)?;
-        inner
+        let inner = self.trading_state.inner.read();
+        let account = inner.get(&self.api_key)?;
+        let order_id = account.client_order_ids.get(client_order_id)?;
+        account
             .orders
             .get(order_id)
             .map(|stored| stored.order.clone())
@@ -313,8 +354,11 @@ impl OrdersState {
         input: ReplaceOrderInput,
     ) -> Result<Order, OrdersStateError> {
         let current = {
-            let inner = self.inner.read();
-            inner.orders.get(order_id).cloned().ok_or_else(|| {
+            let inner = self.trading_state.inner.read();
+            let account = inner.get(&self.api_key).ok_or_else(|| {
+                OrdersStateError::NotFound(format!("order {order_id} was not found"))
+            })?;
+            account.orders.get(order_id).cloned().ok_or_else(|| {
                 OrdersStateError::NotFound(format!("order {order_id} was not found"))
             })?
         };
@@ -328,19 +372,6 @@ impl OrdersState {
             .client_order_id
             .clone()
             .unwrap_or_else(|| Uuid::new_v4().to_string());
-        {
-            let inner = self.inner.read();
-            if replacement_client_order_id != current.order.client_order_id
-                && inner
-                    .client_order_ids
-                    .contains_key(&replacement_client_order_id)
-            {
-                return Err(OrdersStateError::Conflict(format!(
-                    "client_order_id {replacement_client_order_id} already exists"
-                )));
-            }
-        }
-
         let now = now_string();
         let replacement_order_id = Uuid::new_v4().to_string();
         let replacement_qty = input.qty.or(current.order.qty);
@@ -424,48 +455,74 @@ impl OrdersState {
         });
         apply_fill_rules(&mut replacement, &current.request_side, &market_quotes);
 
-        let mut inner = self.inner.write();
+        let mut inner = self.trading_state.inner.write();
+        let account = inner
+            .entry(self.api_key.clone())
+            .or_insert_with(|| VirtualAccountState::new(&self.api_key));
+        if replacement_client_order_id != current.order.client_order_id
+            && account
+                .client_order_ids
+                .contains_key(&replacement_client_order_id)
+        {
+            return Err(OrdersStateError::Conflict(format!(
+                "client_order_id {replacement_client_order_id} already exists"
+            )));
+        }
         let request_side = {
-            let current = inner.orders.get_mut(order_id).ok_or_else(|| {
+            let current = account.orders.get_mut(order_id).ok_or_else(|| {
                 OrdersStateError::NotFound(format!("order {order_id} was not found"))
             })?;
+            if is_terminal_status(&current.order.status) {
+                return Err(OrdersStateError::Conflict(format!(
+                    "order {order_id} is no longer replaceable"
+                )));
+            }
             let request_side = current.request_side.clone();
             mark_order_replaced(&mut current.order, &replacement, &now);
             request_side
         };
-        inner
+        account
             .client_order_ids
             .insert(replacement_client_order_id, replacement_order_id.clone());
-        inner.orders.insert(
+        account.orders.insert(
             replacement_order_id,
             StoredOrder {
                 order: replacement.clone(),
-                request_side,
+                request_side: request_side.clone(),
             },
         );
+        record_replace_effects(account, order_id, &replacement, &request_side);
 
         Ok(replacement)
     }
 
     pub fn cancel_order(&self, order_id: &str) -> Result<(), OrdersStateError> {
-        let mut inner = self.inner.write();
-        let stored = inner
-            .orders
-            .get_mut(order_id)
-            .ok_or_else(|| OrdersStateError::NotFound(format!("order {order_id} was not found")))?;
-        if is_terminal_status(&stored.order.status) {
-            return Err(OrdersStateError::Conflict(format!(
-                "order {order_id} is already terminal"
-            )));
-        }
-
-        mark_order_canceled(&mut stored.order);
+        let mut inner = self.trading_state.inner.write();
+        let account = inner
+            .entry(self.api_key.clone())
+            .or_insert_with(|| VirtualAccountState::new(&self.api_key));
+        let order = {
+            let stored = account.orders.get_mut(order_id).ok_or_else(|| {
+                OrdersStateError::NotFound(format!("order {order_id} was not found"))
+            })?;
+            if is_terminal_status(&stored.order.status) {
+                return Err(OrdersStateError::Conflict(format!(
+                    "order {order_id} is already terminal"
+                )));
+            }
+            mark_order_canceled(&mut stored.order);
+            stored.order.clone()
+        };
+        record_cancel_effects(account, &order);
         Ok(())
     }
 
     pub fn cancel_all_orders(&self) -> Vec<CancelAllOrderResult> {
-        let mut inner = self.inner.write();
-        let mut order_ids = inner
+        let mut inner = self.trading_state.inner.write();
+        let account = inner
+            .entry(self.api_key.clone())
+            .or_insert_with(|| VirtualAccountState::new(&self.api_key));
+        let mut order_ids = account
             .orders
             .iter()
             .filter_map(|(order_id, stored)| {
@@ -478,22 +535,24 @@ impl OrdersState {
             .collect::<Vec<_>>();
         order_ids.sort();
 
-        order_ids
-            .into_iter()
-            .filter_map(|order_id| {
-                let stored = inner.orders.get_mut(&order_id)?;
+        let mut results = Vec::with_capacity(order_ids.len());
+        for order_id in order_ids {
+            let order = {
+                let stored = match account.orders.get_mut(&order_id) {
+                    Some(stored) => stored,
+                    None => continue,
+                };
                 mark_order_canceled(&mut stored.order);
-                Some(build_cancel_all_result(
-                    order_id,
-                    200,
-                    Some(stored.order.clone()),
-                ))
-            })
-            .collect()
+                stored.order.clone()
+            };
+            record_cancel_effects(account, &order);
+            results.push(build_cancel_all_result(order_id, 200, Some(order)));
+        }
+        results
     }
 
     pub fn market_snapshot(&self) -> OrdersMarketSnapshot {
-        self.inner.read().market_snapshot.clone()
+        self.market_snapshot.clone()
     }
 
     async fn resolve_market_quotes(
@@ -557,6 +616,158 @@ impl OrdersState {
     }
 }
 
+fn record_create_effects(
+    account: &mut VirtualAccountState,
+    order: &Order,
+    request_side: &OrderSide,
+) {
+    if order.status == OrderStatus::Filled {
+        record_filled_effects(account, order, request_side, None);
+        return;
+    }
+
+    let sequence = account.next_sequence();
+    account.activities.push(ActivityEvent::new(
+        sequence,
+        ActivityEventKind::New,
+        order.id.clone(),
+        order.client_order_id.clone(),
+        None,
+        order.status.clone(),
+        order.symbol.clone(),
+        order.asset_class.clone(),
+        order.updated_at.clone(),
+        Decimal::ZERO,
+    ));
+}
+
+fn record_replace_effects(
+    account: &mut VirtualAccountState,
+    replaced_order_id: &str,
+    replacement: &Order,
+    request_side: &OrderSide,
+) {
+    let sequence = account.next_sequence();
+    account.activities.push(ActivityEvent::new(
+        sequence,
+        ActivityEventKind::Replaced,
+        replacement.id.clone(),
+        replacement.client_order_id.clone(),
+        Some(replaced_order_id.to_owned()),
+        replacement.status.clone(),
+        replacement.symbol.clone(),
+        replacement.asset_class.clone(),
+        replacement.updated_at.clone(),
+        Decimal::ZERO,
+    ));
+
+    if replacement.status == OrderStatus::Filled {
+        record_filled_effects(account, replacement, request_side, Some(replaced_order_id));
+    }
+}
+
+fn record_cancel_effects(account: &mut VirtualAccountState, order: &Order) {
+    let sequence = account.next_sequence();
+    account.activities.push(ActivityEvent::new(
+        sequence,
+        ActivityEventKind::Canceled,
+        order.id.clone(),
+        order.client_order_id.clone(),
+        None,
+        order.status.clone(),
+        order.symbol.clone(),
+        order.asset_class.clone(),
+        order.updated_at.clone(),
+        Decimal::ZERO,
+    ));
+}
+
+fn record_filled_effects(
+    account: &mut VirtualAccountState,
+    order: &Order,
+    request_side: &OrderSide,
+    related_order_id: Option<&str>,
+) {
+    let cash_delta = cash_delta_for_filled_order(order, request_side);
+    account.cash_ledger.apply_delta(cash_delta);
+    let execution_facts = execution_facts_from_order(account, order, request_side);
+    account.executions.extend(execution_facts);
+    let sequence = account.next_sequence();
+    account.activities.push(ActivityEvent::new(
+        sequence,
+        ActivityEventKind::Filled,
+        order.id.clone(),
+        order.client_order_id.clone(),
+        related_order_id.map(str::to_owned),
+        order.status.clone(),
+        order.symbol.clone(),
+        order.asset_class.clone(),
+        order
+            .filled_at
+            .clone()
+            .unwrap_or_else(|| order.updated_at.clone()),
+        cash_delta,
+    ));
+}
+
+fn cash_delta_for_filled_order(order: &Order, request_side: &OrderSide) -> Decimal {
+    let notional = order.filled_avg_price.unwrap_or(Decimal::ZERO) * order.filled_qty;
+    match request_side {
+        OrderSide::Buy | OrderSide::Unspecified => -notional,
+        OrderSide::Sell => notional,
+        _ => Decimal::ZERO,
+    }
+}
+
+fn execution_facts_from_order(
+    account: &mut VirtualAccountState,
+    order: &Order,
+    request_side: &OrderSide,
+) -> Vec<ExecutionFact> {
+    let filled_at = order
+        .filled_at
+        .clone()
+        .unwrap_or_else(|| order.updated_at.clone());
+
+    if order.order_class == OrderClass::Mleg {
+        return order
+            .legs
+            .as_ref()
+            .map(|legs| {
+                legs.iter()
+                    .map(|leg| {
+                        ExecutionFact::new(
+                            account.next_sequence(),
+                            leg.id.clone(),
+                            Some(order.id.clone()),
+                            leg.symbol.clone(),
+                            leg.asset_class.clone(),
+                            leg.side.clone(),
+                            leg.position_intent.clone(),
+                            leg.filled_qty,
+                            leg.filled_avg_price.unwrap_or(Decimal::ZERO),
+                            leg.filled_at.clone().unwrap_or_else(|| filled_at.clone()),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+    }
+
+    vec![ExecutionFact::new(
+        account.next_sequence(),
+        order.id.clone(),
+        None,
+        order.symbol.clone(),
+        order.asset_class.clone(),
+        request_side.clone(),
+        order.position_intent.clone(),
+        order.filled_qty,
+        order.filled_avg_price.unwrap_or(Decimal::ZERO),
+        filled_at,
+    )]
+}
+
 fn apply_fill_rules(
     order: &mut Order,
     request_side: &OrderSide,
@@ -588,11 +799,11 @@ fn apply_fill_rules(
         return;
     }
 
-    order.status = OrderStatus::Accepted;
+    order.status = OrderStatus::New;
     order.filled_qty = Decimal::ZERO;
     order.filled_avg_price = None;
     order.filled_at = None;
-    sync_nested_legs(order, market_quotes, None, OrderStatus::Accepted);
+    sync_nested_legs(order, market_quotes, None, OrderStatus::New);
 }
 
 fn fill_price_from_mid(order: &Order, request_side: &OrderSide, mid: Decimal) -> Option<Decimal> {
@@ -807,10 +1018,6 @@ fn build_leg_orders_from_requests(
         .collect()
 }
 
-fn mid_price(bid: Decimal, ask: Decimal) -> Decimal {
-    ((bid + ask) / Decimal::new(2, 0)).round_dp(2)
-}
-
 async fn live_stock_snapshot(
     data_client: &DataClient,
     symbol: &str,
@@ -1013,7 +1220,7 @@ fn build_order(spec: NewOrderSpec) -> Order {
         "time_in_force": spec.time_in_force,
         "limit_price": spec.limit_price,
         "stop_price": spec.stop_price,
-        "status": OrderStatus::Accepted,
+        "status": OrderStatus::New,
         "extended_hours": spec.extended_hours,
         "legs": spec.legs,
         "trail_percent": spec.trail_percent,
@@ -1046,11 +1253,9 @@ mod tests {
 
     fn test_state(market_snapshot: OrdersMarketSnapshot) -> OrdersState {
         OrdersState {
-            inner: Arc::new(RwLock::new(OrdersStateInner {
-                market_snapshot,
-                orders: HashMap::new(),
-                client_order_ids: HashMap::new(),
-            })),
+            trading_state: MockTradingState::new(),
+            api_key: "mock-unit-test".to_owned(),
+            market_snapshot,
             data_client: None,
         }
     }
@@ -1227,7 +1432,7 @@ mod tests {
             stop_loss: None,
         });
         apply_fill_rules(&mut accepted, &OrderSide::Buy, &market_quotes);
-        assert_eq!(accepted.status, OrderStatus::Accepted);
+        assert_eq!(accepted.status, OrderStatus::New);
 
         let mut filled = build_order(NewOrderSpec {
             id: Uuid::new_v4().to_string(),
@@ -1330,7 +1535,7 @@ mod tests {
             stop_loss: None,
         });
         apply_fill_rules(&mut accepted, &OrderSide::Buy, &market_quotes);
-        assert_eq!(accepted.status, OrderStatus::Accepted);
+        assert_eq!(accepted.status, OrderStatus::New);
 
         let filled_legs = build_leg_orders_from_requests(
             &legs,
