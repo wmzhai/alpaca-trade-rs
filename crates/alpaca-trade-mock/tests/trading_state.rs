@@ -2,9 +2,9 @@
 mod trade_support;
 
 use alpaca_trade::Decimal;
-use alpaca_trade::orders::{OrderSide, OrderStatus, OrderType, TimeInForce};
+use alpaca_trade::orders::{OrderSide, OrderStatus, OrderType, PositionIntent, TimeInForce};
 use alpaca_trade_mock::state::{
-    CreateOrderInput, MockTradingState, OrdersState, ReplaceOrderInput,
+    CreateOrderInput, ExecutionFact, MockTradingState, OrdersState, PositionBook, ReplaceOrderInput,
 };
 use trade_support::orders::{orders_test_context, orders_test_lock, stock_price_context};
 
@@ -36,6 +36,80 @@ fn different_api_keys_resolve_to_different_virtual_accounts() {
     let second = state.ensure_account("mock-key-b");
 
     assert_ne!(first.account_profile().id, second.account_profile().id);
+}
+
+#[tokio::test]
+async fn filled_execution_updates_lot_book_for_open_and_close_flows() {
+    let mut book = PositionBook::default();
+
+    book.apply_execution(&ExecutionFact::new(
+        1,
+        "stock-buy-1".to_owned(),
+        None,
+        "mock-asset-SPY".to_owned(),
+        "SPY".to_owned(),
+        "us_equity".to_owned(),
+        OrderSide::Buy,
+        None,
+        Decimal::new(2, 0),
+        Decimal::new(100, 0),
+        "2026-04-07T13:30:00Z".to_owned(),
+    ));
+    book.apply_execution(&ExecutionFact::new(
+        2,
+        "stock-sell-1".to_owned(),
+        None,
+        "mock-asset-SPY".to_owned(),
+        "SPY".to_owned(),
+        "us_equity".to_owned(),
+        OrderSide::Sell,
+        Some(PositionIntent::SellToClose),
+        Decimal::new(1, 0),
+        Decimal::new(110, 0),
+        "2026-04-07T13:31:00Z".to_owned(),
+    ));
+    book.apply_execution(&ExecutionFact::new(
+        3,
+        "stock-short-1".to_owned(),
+        None,
+        "mock-asset-QQQ".to_owned(),
+        "QQQ".to_owned(),
+        "us_equity".to_owned(),
+        OrderSide::Sell,
+        Some(PositionIntent::SellToOpen),
+        Decimal::new(3, 0),
+        Decimal::new(50, 0),
+        "2026-04-07T13:32:00Z".to_owned(),
+    ));
+    book.apply_execution(&ExecutionFact::new(
+        4,
+        "stock-cover-1".to_owned(),
+        None,
+        "mock-asset-QQQ".to_owned(),
+        "QQQ".to_owned(),
+        "us_equity".to_owned(),
+        OrderSide::Buy,
+        Some(PositionIntent::BuyToClose),
+        Decimal::new(1, 0),
+        Decimal::new(45, 0),
+        "2026-04-07T13:33:00Z".to_owned(),
+    ));
+
+    let spy = book
+        .find_open_position("SPY")
+        .expect("SPY long should remain open after a partial close");
+    assert_eq!(spy.net_qty, Decimal::new(1, 0));
+    assert_eq!(spy.open_lots.len(), 1);
+    assert_eq!(spy.open_lots[0].qty, Decimal::new(1, 0));
+    assert_eq!(spy.open_lots[0].avg_entry_price, Decimal::new(100, 0));
+
+    let qqq = book
+        .find_open_position("QQQ")
+        .expect("QQQ short should remain open after a partial cover");
+    assert_eq!(qqq.net_qty, Decimal::new(-2, 0));
+    assert_eq!(qqq.open_lots.len(), 1);
+    assert_eq!(qqq.open_lots[0].qty, Decimal::new(2, 0));
+    assert_eq!(qqq.open_lots[0].avg_entry_price, Decimal::new(50, 0));
 }
 
 #[tokio::test]

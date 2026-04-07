@@ -9,6 +9,7 @@ pub struct InstrumentSnapshot {
     pub asset_class: String,
     pub bid: Decimal,
     pub ask: Decimal,
+    pub previous_close: Option<Decimal>,
 }
 
 impl InstrumentSnapshot {
@@ -17,6 +18,7 @@ impl InstrumentSnapshot {
             asset_class: "us_equity".to_owned(),
             bid,
             ask,
+            previous_close: Some(mid_price(bid, ask)),
         }
     }
 
@@ -25,6 +27,7 @@ impl InstrumentSnapshot {
             asset_class: "us_option".to_owned(),
             bid,
             ask,
+            previous_close: Some(mid_price(bid, ask)),
         }
     }
 

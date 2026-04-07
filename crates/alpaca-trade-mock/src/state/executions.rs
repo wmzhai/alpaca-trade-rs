@@ -2,24 +2,26 @@ use alpaca_trade::Decimal;
 use alpaca_trade::orders::{OrderSide, PositionIntent};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ExecutionFact {
-    pub(crate) sequence: u64,
-    pub(crate) order_id: String,
-    pub(crate) parent_order_id: Option<String>,
-    pub(crate) symbol: String,
-    pub(crate) asset_class: String,
-    pub(crate) side: OrderSide,
-    pub(crate) position_intent: Option<PositionIntent>,
-    pub(crate) qty: Decimal,
-    pub(crate) price: Decimal,
-    pub(crate) occurred_at: String,
+pub struct ExecutionFact {
+    pub sequence: u64,
+    pub order_id: String,
+    pub parent_order_id: Option<String>,
+    pub asset_id: String,
+    pub symbol: String,
+    pub asset_class: String,
+    pub side: OrderSide,
+    pub position_intent: Option<PositionIntent>,
+    pub qty: Decimal,
+    pub price: Decimal,
+    pub occurred_at: String,
 }
 
 impl ExecutionFact {
-    pub(crate) fn new(
+    pub fn new(
         sequence: u64,
         order_id: String,
         parent_order_id: Option<String>,
+        asset_id: String,
         symbol: String,
         asset_class: String,
         side: OrderSide,
@@ -32,6 +34,7 @@ impl ExecutionFact {
             sequence,
             order_id,
             parent_order_id,
+            asset_id,
             symbol,
             asset_class,
             side,

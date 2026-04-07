@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.8 - 2026-04-07
+
+- Add a lot-based mock position book driven by execution facts instead of inferring positions directly from order state.
+- Expose mock `positions` read routes for stocks, single-leg options, and multi-leg option legs.
+- Require live market data for position valuation fields and fail fast when the needed quotes are unavailable.
+
 ## 0.8.7 - 2026-04-07
 
 - Add mock `GET /v2/account` backed by the shared account-scoped trading state.

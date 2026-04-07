@@ -28,6 +28,11 @@ pub fn build_app_with_market_snapshot(market_snapshot: OrdersMarketSnapshot) -> 
     };
     let trading_router = Router::new()
         .route("/v2/account", get(handlers::account_get))
+        .route("/v2/positions", get(handlers::positions_list))
+        .route(
+            "/v2/positions/{symbol_or_asset_id}",
+            get(handlers::positions_get),
+        )
         .route(
             "/v2/orders",
             get(handlers::orders_list)

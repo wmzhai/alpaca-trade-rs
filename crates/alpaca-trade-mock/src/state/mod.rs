@@ -7,13 +7,16 @@ mod account;
 mod activities;
 mod executions;
 mod market_data;
+mod positions;
 
 use activities::{ActivityEvent, ActivityEventKind};
-use executions::ExecutionFact;
+use positions::{ProjectedPosition, project_position};
 
 use alpaca_data::Client as DataClient;
-use alpaca_data::options::{Snapshot as OptionSnapshot, SnapshotsRequest};
-use alpaca_data::stocks::LatestQuoteRequest;
+use alpaca_data::options::{
+    Snapshot as OptionSnapshot, SnapshotsRequest as OptionSnapshotsRequest,
+};
+use alpaca_data::stocks::{Snapshot as StockSnapshot, SnapshotsRequest as StockSnapshotsRequest};
 use alpaca_trade::Decimal;
 use alpaca_trade::orders::{
     CancelAllOrderResult, OptionLegRequest, Order, OrderClass, OrderSide, OrderStatus, OrderType,
@@ -24,7 +27,9 @@ use parking_lot::RwLock;
 use uuid::Uuid;
 
 pub use account::{AccountProfile, CashLedger};
+pub use executions::ExecutionFact;
 pub use market_data::{DEFAULT_STOCK_SYMBOL, InstrumentSnapshot, OrdersMarketSnapshot, mid_price};
+pub use positions::{InstrumentPosition, OpenLot, PositionBook, PositionSide};
 
 const API_KEY_CANDIDATES: [&str; 2] = ["ALPACA_TRADE_API_KEY", "APCA_API_KEY_ID"];
 const SECRET_KEY_CANDIDATES: [&str; 2] = ["ALPACA_TRADE_SECRET_KEY", "APCA_API_SECRET_KEY"];
@@ -41,6 +46,7 @@ pub struct VirtualAccountState {
     pub(crate) orders: HashMap<String, StoredOrder>,
     pub(crate) client_order_ids: HashMap<String, String>,
     pub(crate) executions: Vec<ExecutionFact>,
+    pub(crate) positions: PositionBook,
     pub(crate) activities: Vec<ActivityEvent>,
     pub(crate) sequence_clock: u64,
 }
@@ -71,6 +77,7 @@ impl VirtualAccountState {
             orders: HashMap::new(),
             client_order_ids: HashMap::new(),
             executions: Vec::new(),
+            positions: PositionBook::default(),
             activities: Vec::new(),
             sequence_clock: 0,
         }
@@ -95,6 +102,10 @@ impl VirtualAccountState {
 
     pub fn activity_count(&self) -> usize {
         self.activities.len()
+    }
+
+    pub fn positions(&self) -> &PositionBook {
+        &self.positions
     }
 }
 
@@ -181,6 +192,61 @@ impl OrdersState {
         account::project_account(&account)
     }
 
+    pub(crate) async fn list_positions(&self) -> Result<Vec<ProjectedPosition>, OrdersStateError> {
+        let account = self.account_snapshot();
+        let open_positions = account.positions().list_open_positions();
+        let market_quotes = self
+            .resolve_market_quotes(
+                &open_positions
+                    .iter()
+                    .map(|position| position.instrument_identity.symbol.clone())
+                    .collect::<Vec<_>>(),
+            )
+            .await?;
+
+        let mut positions = open_positions
+            .iter()
+            .map(|position| {
+                let market_snapshot = market_quotes
+                    .get(&position.instrument_identity.symbol)
+                    .ok_or_else(|| {
+                        OrdersStateError::MarketDataUnavailable(format!(
+                            "mock position valuation for {} requires live market data",
+                            position.instrument_identity.symbol
+                        ))
+                    })?;
+                Ok(project_position(position, market_snapshot))
+            })
+            .collect::<Result<Vec<_>, OrdersStateError>>()?;
+        positions.sort_by(|left, right| left.symbol.cmp(&right.symbol));
+        Ok(positions)
+    }
+
+    pub(crate) async fn get_position(
+        &self,
+        symbol_or_asset_id: &str,
+    ) -> Result<ProjectedPosition, OrdersStateError> {
+        let account = self.account_snapshot();
+        let position = account
+            .positions()
+            .find_open_position(symbol_or_asset_id)
+            .ok_or_else(|| {
+                OrdersStateError::NotFound(format!("position {symbol_or_asset_id} was not found"))
+            })?;
+        let market_quotes = self
+            .resolve_market_quotes(std::slice::from_ref(&position.instrument_identity.symbol))
+            .await?;
+        let market_snapshot = market_quotes
+            .get(&position.instrument_identity.symbol)
+            .ok_or_else(|| {
+                OrdersStateError::MarketDataUnavailable(format!(
+                    "mock position valuation for {} requires live market data",
+                    position.instrument_identity.symbol
+                ))
+            })?;
+        Ok(project_position(&position, market_snapshot))
+    }
+
     pub async fn create_order(&self, input: CreateOrderInput) -> Result<Order, OrdersStateError> {
         let order_class = input.order_class.clone().unwrap_or(OrderClass::Simple);
         let request_side = input.side.clone().unwrap_or(OrderSide::Buy);
@@ -236,7 +302,7 @@ impl OrdersState {
         let effective_asset_id = if order_class == OrderClass::Mleg {
             String::new()
         } else {
-            Uuid::new_v4().to_string()
+            mock_asset_id(&symbol)
         };
         let mut order = build_order(NewOrderSpec {
             id: order_id.clone(),
@@ -564,6 +630,10 @@ impl OrdersState {
         &self,
         symbols: &[String],
     ) -> Result<HashMap<String, InstrumentSnapshot>, OrdersStateError> {
+        if symbols.is_empty() {
+            return Ok(HashMap::new());
+        }
+
         let mut quotes = HashMap::new();
 
         let data_client = self.data_client.as_ref().ok_or_else(|| {
@@ -577,11 +647,32 @@ impl OrdersState {
             .filter(|symbol| !looks_like_option_symbol(symbol))
             .cloned()
             .collect::<Vec<_>>();
-        for symbol in stock_symbols {
-            let snapshot = live_stock_snapshot(data_client, &symbol)
+        if !stock_symbols.is_empty() {
+            let snapshots = data_client
+                .stocks()
+                .snapshots(StockSnapshotsRequest {
+                    symbols: stock_symbols.clone(),
+                    ..StockSnapshotsRequest::default()
+                })
                 .await
-                .map_err(|message| OrdersStateError::MarketDataUnavailable(message.clone()))?;
-            quotes.insert(symbol, snapshot);
+                .map_err(|error| {
+                    OrdersStateError::MarketDataUnavailable(format!(
+                        "stock snapshots request failed: {error}"
+                    ))
+                })?;
+            for symbol in stock_symbols {
+                let snapshot = snapshots.get(&symbol).ok_or_else(|| {
+                    OrdersStateError::MarketDataUnavailable(format!(
+                        "stock snapshots response did not include {symbol}"
+                    ))
+                })?;
+                let instrument = live_stock_snapshot(snapshot).ok_or_else(|| {
+                    OrdersStateError::MarketDataUnavailable(format!(
+                        "stock snapshot for {symbol} is missing a usable live bid/ask"
+                    ))
+                })?;
+                quotes.insert(symbol, instrument);
+            }
         }
 
         let option_symbols = symbols
@@ -592,9 +683,9 @@ impl OrdersState {
         if !option_symbols.is_empty() {
             let response = data_client
                 .options()
-                .snapshots(SnapshotsRequest {
+                .snapshots(OptionSnapshotsRequest {
                     symbols: option_symbols.clone(),
-                    ..SnapshotsRequest::default()
+                    ..OptionSnapshotsRequest::default()
                 })
                 .await
                 .map_err(|error| {
@@ -696,6 +787,9 @@ fn record_filled_effects(
     let cash_delta = cash_delta_for_filled_order(order, request_side);
     account.cash_ledger.apply_delta(cash_delta);
     let execution_facts = execution_facts_from_order(account, order, request_side);
+    for execution in &execution_facts {
+        account.positions.apply_execution(execution);
+    }
     account.executions.extend(execution_facts);
     let sequence = account.next_sequence();
     account.activities.push(ActivityEvent::new(
@@ -745,6 +839,7 @@ fn execution_facts_from_order(
                             account.next_sequence(),
                             leg.id.clone(),
                             Some(order.id.clone()),
+                            leg.asset_id.clone(),
                             leg.symbol.clone(),
                             leg.asset_class.clone(),
                             leg.side.clone(),
@@ -763,6 +858,7 @@ fn execution_facts_from_order(
         account.next_sequence(),
         order.id.clone(),
         None,
+        order.asset_id.clone(),
         order.symbol.clone(),
         order.asset_class.clone(),
         request_side.clone(),
@@ -965,6 +1061,10 @@ fn requested_symbols(symbol: Option<&str>, legs: Option<&[OptionLegRequest]>) ->
     symbols
 }
 
+fn mock_asset_id(symbol: &str) -> String {
+    format!("mock-asset-{symbol}")
+}
+
 fn option_leg_requests_from_orders(legs: &[Order]) -> Vec<OptionLegRequest> {
     legs.iter()
         .map(|leg| OptionLegRequest {
@@ -998,7 +1098,7 @@ fn build_leg_orders_from_requests(
                 expires_at: expires_at_for(time_in_force.clone()),
                 asset_id: previous_leg
                     .map(|leg| leg.asset_id.clone())
-                    .unwrap_or_else(|| Uuid::new_v4().to_string()),
+                    .unwrap_or_else(|| mock_asset_id(&leg.symbol)),
                 symbol: leg.symbol.clone(),
                 asset_class: "us_option".to_owned(),
                 notional: None,
@@ -1023,32 +1123,43 @@ fn build_leg_orders_from_requests(
         .collect()
 }
 
-async fn live_stock_snapshot(
-    data_client: &DataClient,
-    symbol: &str,
-) -> Result<InstrumentSnapshot, String> {
-    let quote = data_client
-        .stocks()
-        .latest_quote(LatestQuoteRequest {
-            symbol: symbol.to_owned(),
-            ..LatestQuoteRequest::default()
+fn live_stock_snapshot(snapshot: &StockSnapshot) -> Option<InstrumentSnapshot> {
+    let latest_trade_price = snapshot
+        .latestTrade
+        .as_ref()
+        .and_then(|trade| trade.p)
+        .and_then(decimal_from_market_data);
+    let bid = snapshot
+        .latestQuote
+        .as_ref()
+        .and_then(|quote| quote.bp)
+        .and_then(decimal_from_market_data)
+        .or(latest_trade_price)?;
+    let ask = snapshot
+        .latestQuote
+        .as_ref()
+        .and_then(|quote| quote.ap.or(quote.bp))
+        .and_then(decimal_from_market_data)
+        .or(latest_trade_price)?;
+    let previous_close = snapshot
+        .prevDailyBar
+        .as_ref()
+        .and_then(|bar| bar.c)
+        .and_then(decimal_from_market_data)
+        .or_else(|| {
+            snapshot
+                .dailyBar
+                .as_ref()
+                .and_then(|bar| bar.c)
+                .and_then(decimal_from_market_data)
         })
-        .await
-        .map_err(|error| format!("latest stock quote request failed for {symbol}: {error}"))?;
-    let bid = quote
-        .quote
-        .bp
-        .and_then(decimal_from_market_data)
-        .ok_or_else(|| format!("latest stock quote for {symbol} is missing bid price"))?;
-    let ask = quote
-        .quote
-        .ap
-        .or(quote.quote.bp)
-        .and_then(decimal_from_market_data)
-        .ok_or_else(|| {
-            format!("latest stock quote for {symbol} is missing both ask and bid prices")
-        })?;
-    Ok(InstrumentSnapshot::equity(bid, ask))
+        .or(latest_trade_price);
+    Some(InstrumentSnapshot {
+        asset_class: "us_equity".to_owned(),
+        bid,
+        ask,
+        previous_close,
+    })
 }
 
 fn live_option_snapshot(snapshot: &OptionSnapshot) -> Option<InstrumentSnapshot> {
@@ -1076,7 +1187,25 @@ fn live_option_snapshot(snapshot: &OptionSnapshot) -> Option<InstrumentSnapshot>
                 .and_then(decimal_from_market_data)
         })
         .or(latest_trade_price)?;
-    Some(InstrumentSnapshot::option(bid, ask))
+    let previous_close = snapshot
+        .prevDailyBar
+        .as_ref()
+        .and_then(|bar| bar.c)
+        .and_then(decimal_from_market_data)
+        .or_else(|| {
+            snapshot
+                .dailyBar
+                .as_ref()
+                .and_then(|bar| bar.c)
+                .and_then(decimal_from_market_data)
+        })
+        .or(latest_trade_price);
+    Some(InstrumentSnapshot {
+        asset_class: "us_option".to_owned(),
+        bid,
+        ask,
+        previous_close,
+    })
 }
 
 fn looks_like_option_symbol(symbol: &str) -> bool {
