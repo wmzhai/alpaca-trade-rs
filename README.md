@@ -16,12 +16,12 @@
 - Default retry behavior: automatic retry is limited to `GET`
 - Retry semantics: `max_get_attempts` counts total attempts, so `1` disables retry and `2` means one retry after the first failed `GET`
 - Numeric model policy: high-precision financial fields in the public Rust API use `alpaca_trade::Decimal`, while request/response wire shapes still mirror the official Alpaca contract
-- Benchmark note: Phase 7 continues to reuse the shared transport foundation, so the current milestone does not add a dedicated benchmark track
+- Benchmark note: the pre-Phase-8 mock trading-state foundation does not add a dedicated benchmark track because it expands internal test infrastructure rather than a new public performance-sensitive endpoint
 
 ## Workspace
 
 - `crates/alpaca-trade`: async Trading API client
-- `crates/alpaca-trade-mock`: internal workspace helper for stateful `orders` fallback tests outside dedicated Paper mutating windows
+- `crates/alpaca-trade-mock`: internal workspace helper for linked `account` / `orders` / `positions` / `activities` fallback tests outside dedicated Paper mutating windows
 - `tools/api-coverage/trading-api.json`: family-level coverage manifest for Trading HTTP REST audit work
 
 ## Implemented API
@@ -101,5 +101,7 @@ Notes:
 - `orders_mutating` automatically uses dedicated-account Paper mutating coverage during market hours and falls back to `alpaca-trade-mock` outside that window or when the dedicated-account marker is unavailable.
 - Set `ALPACA_TRADE_ORDERS_TEST_ACCOUNT=1` on the dedicated Paper test account to enable the real `paper_mutating_with_cleanup` path, including the guarded `cancel_all()` coverage and dynamically discovered single-leg / multi-leg option flows backed by `alpaca-data`.
 - Both the dedicated Paper `orders_mutating` path and the mock `orders` coverage now require live `alpaca-data` quotes and `optionchain` discovery; missing live market data fails the test instead of falling back to seeded snapshots or synthetic prices.
+- The stateful mock server lazy-creates one virtual account per `apca-api-key-id`, seeds `cash = 1000000`, and keeps `account`, `orders`, `positions`, and `activities` in one account-scoped in-memory truth source for fallback verification.
+- That internal mock foundation does not change the public implemented-resource list; it only exists so order-driven cash, position, and activity side effects can be reconciled before the public `positions()` and `activities()` phases begin.
 - The live test helper accepts both the standard `APCA_*` names and the repo-local `ALPACA_TRADE_*` aliases.
 - Read-only live smoke tests still skip when credentials are missing, but the market-data-dependent `orders` Paper/mock paths now fail fast because they are expected to prove real quote-backed behavior.

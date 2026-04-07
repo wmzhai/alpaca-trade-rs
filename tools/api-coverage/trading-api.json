@@ -54,9 +54,9 @@
           "reference": "https://docs.alpaca.markets/reference/getaccount-1",
           "mirror_status": "implemented",
           "convenience_status": "implemented",
-          "mock_status": "not_planned",
+          "mock_status": "implemented",
           "live_test_status": "credential_gated",
-          "notes": "Phase 1 shipped in v0.1.0; normal-path verification was realigned to live-first in v0.1.4. Automated runs exercise Alpaca Paper only when credentials are present, and the live helper accepts both APCA_* and ALPACA_TRADE_* naming conventions."
+          "notes": "Phase 1 shipped in v0.1.0; normal-path verification was realigned to live-first in v0.1.4. Automated runs exercise Alpaca Paper only when credentials are present, and the live helper accepts both APCA_* and ALPACA_TRADE_* naming conventions. The pre-Phase-8 mock trading-state foundation also exposes a test-only `/v2/account` projection so mock order flows can reconcile cash changes."
         }
       ]
     },
@@ -256,9 +256,9 @@
           "reference": "https://docs.alpaca.markets/reference/getallopenpositions",
           "mirror_status": "not_started",
           "convenience_status": "not_started",
-          "mock_status": "not_started",
+          "mock_status": "implemented",
           "live_test_status": "not_started",
-          "notes": "Lists the account's open positions."
+          "notes": "Lists the account's open positions. Public `positions()` client work is still pending even though the internal mock trading-state foundation now implements the linked route for fallback verification."
         },
         {
           "operation": "close_all_positions",
@@ -267,9 +267,9 @@
           "reference": "https://docs.alpaca.markets/reference/deleteallopenpositions-1",
           "mirror_status": "not_started",
           "convenience_status": "not_started",
-          "mock_status": "not_started",
+          "mock_status": "implemented",
           "live_test_status": "not_started",
-          "notes": "Bulk liquidation endpoint."
+          "notes": "Bulk liquidation endpoint. Public client work is still pending; the current implementation exists in the internal mock trading-state foundation only."
         },
         {
           "operation": "get_position_by_symbol_or_asset_id",
@@ -278,9 +278,9 @@
           "reference": "https://docs.alpaca.markets/reference/getopenposition",
           "mirror_status": "not_started",
           "convenience_status": "not_started",
-          "mock_status": "not_started",
+          "mock_status": "implemented",
           "live_test_status": "not_started",
-          "notes": "ID or symbol addressed position lookup."
+          "notes": "ID or symbol addressed position lookup. Public client work is still pending; the current implementation exists in the internal mock trading-state foundation only."
         },
         {
           "operation": "close_position_by_symbol_or_asset_id",
@@ -289,9 +289,9 @@
           "reference": "https://docs.alpaca.markets/v1.3/reference/deleteopenposition",
           "mirror_status": "not_started",
           "convenience_status": "not_started",
-          "mock_status": "not_started",
+          "mock_status": "implemented",
           "live_test_status": "not_started",
-          "notes": "Single-position liquidation endpoint."
+          "notes": "Single-position liquidation endpoint. Public client work is still pending; the current implementation exists in the internal mock trading-state foundation only."
         },
         {
           "operation": "exercise_options_position",
@@ -300,9 +300,9 @@
           "reference": "https://docs.alpaca.markets/reference/optionexercise",
           "mirror_status": "not_started",
           "convenience_status": "not_started",
-          "mock_status": "not_started",
+          "mock_status": "implemented",
           "live_test_status": "not_started",
-          "notes": "Options exercise endpoint retained because options are in scope for Trading HTTP REST."
+          "notes": "Options exercise endpoint retained because options are in scope for Trading HTTP REST. Public client work is still pending; the current implementation exists in the internal mock trading-state foundation only."
         },
         {
           "operation": "do_not_exercise_options_position",
@@ -311,9 +311,9 @@
           "reference": "https://docs.alpaca.markets/v1.4.2/reference/positions-1",
           "mirror_status": "not_started",
           "convenience_status": "not_started",
-          "mock_status": "not_started",
+          "mock_status": "implemented",
           "live_test_status": "not_started",
-          "notes": "DNE override endpoint for option positions."
+          "notes": "DNE override endpoint for option positions. Public client work is still pending; the current implementation exists in the internal mock trading-state foundation only."
         }
       ]
     },
@@ -330,9 +330,9 @@
           "reference": "https://docs.alpaca.markets/v1.3/reference/account-activities",
           "mirror_status": "not_started",
           "convenience_status": "not_started",
-          "mock_status": "not_started",
+          "mock_status": "implemented",
           "live_test_status": "not_started",
-          "notes": "Pagination-sensitive activity feed."
+          "notes": "Pagination-sensitive activity feed. Public `activities()` client work is still pending even though the internal mock trading-state foundation now implements the linked route for fallback verification."
         },
         {
           "operation": "list_account_activities_by_type",
@@ -341,9 +341,9 @@
           "reference": "https://docs.alpaca.markets/reference/getaccountactivitiesbyactivitytype",
           "mirror_status": "not_started",
           "convenience_status": "not_started",
-          "mock_status": "not_started",
+          "mock_status": "implemented",
           "live_test_status": "not_started",
-          "notes": "Type-filtered activity endpoint."
+          "notes": "Type-filtered activity endpoint. Public client work is still pending; the current implementation exists in the internal mock trading-state foundation only."
         }
       ]
     },

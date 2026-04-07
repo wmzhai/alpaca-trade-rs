@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.0 - 2026-04-07
+
+- Add the pre-Phase-8 mock trading state foundation so `account`, `orders`, `positions`, and `activities` now share one account-scoped in-memory truth source.
+- Lazy-create mock accounts from `apca-api-key-id`, keep all state in memory only, and require live market data for every valuation-sensitive path.
+- Reconnect the existing mock-based order regressions to the new foundation and add cross-resource consistency coverage before beginning the public `positions` phase.
+- No dedicated benchmark track was added because this phase expands test infrastructure and mock semantics rather than shipping a new public performance-sensitive endpoint.
+
 ## 0.8.10 - 2026-04-07
 
 - Add mock `activities` routes backed by the shared trading-event ledger.

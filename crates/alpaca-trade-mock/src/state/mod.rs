@@ -1658,8 +1658,17 @@ mod tests {
     }
 
     async fn live_stock_mid(symbol: &str) -> Decimal {
-        let snapshot = live_stock_snapshot(&live_test_data_client(), symbol)
+        let snapshots = live_test_data_client()
+            .stocks()
+            .snapshots(StockSnapshotsRequest {
+                symbols: vec![symbol.to_owned()],
+                ..StockSnapshotsRequest::default()
+            })
             .await
+            .expect("stock snapshots request should succeed for mock midpoint tests");
+        let snapshot = snapshots
+            .get(symbol)
+            .and_then(live_stock_snapshot)
             .expect("latest live stock quote should be available for mock midpoint tests");
         mid_price(snapshot.bid, snapshot.ask)
     }
