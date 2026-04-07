@@ -1605,4 +1605,126 @@ mod tests {
 
         assert!(matches!(error, OrdersStateError::MarketDataUnavailable(_)));
     }
+
+    #[tokio::test]
+    async fn create_order_quote_failure_leaves_state_untouched() {
+        let state = test_state(OrdersMarketSnapshot::default());
+
+        let error = state
+            .create_order(CreateOrderInput {
+                symbol: Some("SPY".to_owned()),
+                qty: Some(Decimal::new(1, 0)),
+                side: Some(OrderSide::Buy),
+                order_type: Some(OrderType::Market),
+                time_in_force: Some(TimeInForce::Day),
+                client_order_id: Some("quote-failure-no-write".to_owned()),
+                ..CreateOrderInput::default()
+            })
+            .await
+            .expect_err("mock orders must fail when live market data is unavailable");
+
+        let account = state.account_snapshot();
+        assert!(matches!(error, OrdersStateError::MarketDataUnavailable(_)));
+        assert!(account.orders.is_empty());
+        assert!(account.client_order_ids.is_empty());
+        assert_eq!(account.cash_ledger.cash_balance(), Decimal::new(1_000_000, 0));
+        assert!(account.executions.is_empty());
+        assert!(account.activities.is_empty());
+    }
+
+    #[tokio::test]
+    async fn replace_order_quote_failure_leaves_original_order_untouched() {
+        let state = test_state(OrdersMarketSnapshot::default());
+        let now = now_string();
+        let existing = build_order(NewOrderSpec {
+            id: "replace-source-order".to_owned(),
+            client_order_id: "replace-source-client".to_owned(),
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            submitted_at: now,
+            expires_at: expires_at_for(TimeInForce::Day),
+            asset_id: Uuid::new_v4().to_string(),
+            symbol: DEFAULT_STOCK_SYMBOL.to_owned(),
+            asset_class: "us_equity".to_owned(),
+            notional: None,
+            qty: Some(Decimal::new(1, 0)),
+            order_class: OrderClass::Simple,
+            order_type: OrderType::Limit,
+            side: OrderSide::Buy,
+            position_intent: None,
+            time_in_force: TimeInForce::Day,
+            limit_price: Some(Decimal::new(1, 0)),
+            stop_price: None,
+            extended_hours: false,
+            trail_percent: None,
+            trail_price: None,
+            ratio_qty: None,
+            legs: None,
+            replaces: None,
+            take_profit: None,
+            stop_loss: None,
+        });
+        {
+            let mut inner = state.trading_state.inner.write();
+            let account = inner
+                .entry(state.api_key.clone())
+                .or_insert_with(|| VirtualAccountState::new(&state.api_key));
+            account.client_order_ids.insert(
+                existing.client_order_id.clone(),
+                existing.id.clone(),
+            );
+            account.orders.insert(
+                existing.id.clone(),
+                StoredOrder {
+                    order: existing.clone(),
+                    request_side: OrderSide::Buy,
+                },
+            );
+            account.activities.push(ActivityEvent::new(
+                1,
+                ActivityEventKind::New,
+                existing.id.clone(),
+                existing.client_order_id.clone(),
+                None,
+                existing.status.clone(),
+                existing.symbol.clone(),
+                existing.asset_class.clone(),
+                existing.updated_at.clone(),
+                Decimal::ZERO,
+            ));
+            account.sequence_clock = 1;
+        }
+
+        let error = state
+            .replace_order(
+                &existing.id,
+                ReplaceOrderInput {
+                    limit_price: Some(Decimal::new(2, 0)),
+                    ..ReplaceOrderInput::default()
+                },
+            )
+            .await
+            .expect_err("replace should fail when live quote lookup fails");
+
+        let account = state.account_snapshot();
+        let stored = account
+            .orders
+            .get(&existing.id)
+            .expect("original order should still exist");
+        assert!(matches!(error, OrdersStateError::MarketDataUnavailable(_)));
+        assert_eq!(stored.order.status, OrderStatus::New);
+        assert_eq!(stored.order.limit_price, existing.limit_price);
+        assert!(stored.order.replaced_by.is_none());
+        assert_eq!(account.orders.len(), 1);
+        assert_eq!(
+            account
+                .client_order_ids
+                .get(&existing.client_order_id)
+                .map(String::as_str),
+            Some(existing.id.as_str())
+        );
+        assert_eq!(account.cash_ledger.cash_balance(), Decimal::new(1_000_000, 0));
+        assert!(account.executions.is_empty());
+        assert_eq!(account.activities.len(), 1);
+    }
 }

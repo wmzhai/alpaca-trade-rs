@@ -462,6 +462,63 @@ async fn get_by_client_order_id_is_account_local() {
 }
 
 #[tokio::test]
+async fn list_orders_is_account_local() {
+    let _guard = orders_test_lock().await;
+    let context = orders_test_context().await;
+    let stock = stock_price_context(&context, "SPY")
+        .await
+        .expect("live stock quote should be available for mock route tests");
+    let server = alpaca_trade_mock::spawn_test_server().await;
+    let first_client = mock_client_with_api_key(server.base_url.clone(), "mock-list-key-a");
+    let second_client = mock_client_with_api_key(server.base_url.clone(), "mock-list-key-b");
+
+    let first = first_client
+        .orders()
+        .create(CreateRequest {
+            symbol: Some("SPY".to_owned()),
+            qty: Some(Decimal::new(1, 0)),
+            side: Some(OrderSide::Buy),
+            r#type: Some(OrderType::Limit),
+            time_in_force: Some(TimeInForce::Day),
+            limit_price: Some(stock.non_marketable_buy_limit_price),
+            client_order_id: Some("mock-list-local-a".to_owned()),
+            ..CreateRequest::default()
+        })
+        .await
+        .expect("first account create should succeed");
+    let second = second_client
+        .orders()
+        .create(CreateRequest {
+            symbol: Some("SPY".to_owned()),
+            qty: Some(Decimal::new(1, 0)),
+            side: Some(OrderSide::Buy),
+            r#type: Some(OrderType::Limit),
+            time_in_force: Some(TimeInForce::Day),
+            limit_price: Some(stock.non_marketable_buy_limit_price),
+            client_order_id: Some("mock-list-local-b".to_owned()),
+            ..CreateRequest::default()
+        })
+        .await
+        .expect("second account create should succeed");
+
+    let first_list = first_client
+        .orders()
+        .list(Default::default())
+        .await
+        .expect("first account list should succeed");
+    let second_list = second_client
+        .orders()
+        .list(Default::default())
+        .await
+        .expect("second account list should succeed");
+
+    assert_eq!(first_list.len(), 1);
+    assert_eq!(first_list[0].id, first.id);
+    assert_eq!(second_list.len(), 1);
+    assert_eq!(second_list[0].id, second.id);
+}
+
+#[tokio::test]
 async fn non_marketable_limit_orders_now_rest_in_new_status() {
     let _guard = orders_test_lock().await;
     let context = orders_test_context().await;
