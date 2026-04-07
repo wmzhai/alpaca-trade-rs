@@ -3,6 +3,9 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
+mod account;
+mod market_data;
+
 use alpaca_data::Client as DataClient;
 use alpaca_data::options::{Snapshot as OptionSnapshot, SnapshotsRequest};
 use alpaca_data::stocks::LatestQuoteRequest;
@@ -15,70 +18,43 @@ use chrono::Utc;
 use parking_lot::RwLock;
 use uuid::Uuid;
 
-pub const DEFAULT_STOCK_SYMBOL: &str = "SPY";
+pub use account::{AccountProfile, CashLedger};
+pub use market_data::{DEFAULT_STOCK_SYMBOL, InstrumentSnapshot, OrdersMarketSnapshot};
+
 const API_KEY_CANDIDATES: [&str; 2] = ["ALPACA_TRADE_API_KEY", "APCA_API_KEY_ID"];
 const SECRET_KEY_CANDIDATES: [&str; 2] = ["ALPACA_TRADE_SECRET_KEY", "APCA_API_SECRET_KEY"];
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstrumentSnapshot {
-    pub asset_class: String,
-    pub bid: Decimal,
-    pub ask: Decimal,
-}
-
-impl InstrumentSnapshot {
-    pub fn equity(bid: Decimal, ask: Decimal) -> Self {
-        Self {
-            asset_class: "us_equity".to_owned(),
-            bid,
-            ask,
-        }
-    }
-
-    pub fn option(bid: Decimal, ask: Decimal) -> Self {
-        Self {
-            asset_class: "us_option".to_owned(),
-            bid,
-            ask,
-        }
-    }
+#[derive(Debug, Clone, Default)]
+pub struct MockTradingState {
+    inner: Arc<RwLock<HashMap<String, VirtualAccountState>>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct OrdersMarketSnapshot {
-    instruments: HashMap<String, InstrumentSnapshot>,
+pub struct VirtualAccountState {
+    pub account_profile: AccountProfile,
+    pub cash_ledger: CashLedger,
 }
 
-impl Default for OrdersMarketSnapshot {
-    fn default() -> Self {
+impl MockTradingState {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn ensure_account(&self, api_key: &str) -> VirtualAccountState {
+        let mut inner = self.inner.write();
+        inner
+            .entry(api_key.to_owned())
+            .or_insert_with(|| VirtualAccountState::new(api_key))
+            .clone()
+    }
+}
+
+impl VirtualAccountState {
+    fn new(api_key: &str) -> Self {
         Self {
-            instruments: HashMap::new(),
+            account_profile: AccountProfile::new(api_key),
+            cash_ledger: CashLedger::seeded_default(),
         }
-    }
-}
-
-impl OrdersMarketSnapshot {
-    pub fn with_instrument(
-        mut self,
-        symbol: impl Into<String>,
-        instrument: InstrumentSnapshot,
-    ) -> Self {
-        self.instruments.insert(symbol.into(), instrument);
-        self
-    }
-
-    pub fn instrument(&self, symbol: &str) -> Option<InstrumentSnapshot> {
-        self.instruments.get(symbol).cloned()
-    }
-
-    pub fn default_option_symbol(&self) -> Option<&str> {
-        self.instruments.iter().find_map(|(symbol, instrument)| {
-            if instrument.asset_class == "us_option" {
-                Some(symbol.as_str())
-            } else {
-                None
-            }
-        })
     }
 }
 

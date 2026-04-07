@@ -22,18 +22,18 @@ async fn health_returns_ok() {
 }
 
 #[tokio::test]
-async fn account_route_is_not_registered() {
+async fn orders_route_requires_apca_api_key_headers() {
     let app = alpaca_trade_mock::build_app();
 
     let response = app
         .oneshot(
             Request::builder()
-                .uri("/v2/account")
+                .uri("/v2/orders")
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .expect("request should succeed");
 
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }

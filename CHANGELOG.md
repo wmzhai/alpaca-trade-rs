@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.5 - 2026-04-07
+
+- Add the account-scoped mock trading state skeleton with lazy account creation keyed by `apca-api-key-id`.
+- Require Alpaca auth headers on stateful mock trading routes instead of serving anonymous shared state.
+- Seed each new mock account with a default cash balance of `1000000` while keeping all state in memory only.
+
 ## 0.8.4 - 2026-04-06
 
 - Remove the seeded-snapshot fallback from market-data-dependent `orders` Paper/mock coverage so missing live `alpaca-data` quotes or `optionchain` discovery now fails fast instead of continuing with synthetic prices.
